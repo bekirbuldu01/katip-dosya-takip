@@ -592,7 +592,7 @@ function section(id,button){
 
 async function load(){
 
-    const f=await supabase
+    const f=await supabaseClient
     .from("dosyalar")
     .select("*")
     .order("created_at",{ascending:false});
