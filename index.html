@@ -1,12 +1,1123 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Katip Dosya Takip</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Katip Dosya Takip</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+const SUPABASE_URL = "https://rvnilcttrujzuxojpqul.supabase.co"
+const SUPABASE_KEY = "sb_publishable_dPfH2uempxwuvhOhxA3Lbg_jGgTDLLw"
+const supabase = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+);
+</script>
+
+<style>
+*{box-sizing:border-box}
+body{
+    margin:0;
+    font-family:Arial,sans-serif;
+    background:#f4f6f8;
+    color:#17202a
+}
+header{
+    background:#17202a;
+    color:white;
+    padding:16px 20px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center
+}
+header h1{margin:0;font-size:20px}
+.container{max-width:1200px;margin:auto;padding:20px}
+.card{
+    background:white;
+    border-radius:12px;
+    padding:18px;
+    margin-bottom:18px;
+    box-shadow:0 2px 10px #0001
+}
+.hidden{display:none}
+button{
+    border:0;
+    border-radius:8px;
+    padding:10px 14px;
+    cursor:pointer;
+    font-weight:bold
+}
+.primary{background:#1769aa;color:white}
+.secondary{background:#e8edf2;color:#17202a}
+.danger{background:#c0392b;color:white}
+input,select,textarea{
+    width:100%;
+    padding:11px;
+    margin:6px 0 12px;
+    border:1px solid #ccd3da;
+    border-radius:8px
+}
+textarea{min-height:80px}
+label{font-size:13px;font-weight:bold}
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+    gap:12px
+}
+.stats{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+    gap:12px
+}
+.stat{
+    background:white;
+    padding:18px;
+    border-radius:12px;
+    box-shadow:0 2px 8px #0001
+}
+.stat strong{
+    display:block;
+    font-size:28px;
+    margin-top:6px
+}
+.tabs{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-bottom:18px
+}
+.tab.active{background:#1769aa;color:white}
+.badge{
+    display:inline-block;
+    padding:5px 8px;
+    border-radius:20px;
+    font-size:12px;
+    font-weight:bold
+}
+.red{background:#fde2df;color:#a93226}
+.orange{background:#fff0d5;color:#9a6500}
+.green{background:#dff5e5;color:#18733a}
+.gray{background:#e8edf2;color:#59636d}
+table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:14px
+}
+th,td{
+    padding:10px;
+    border-bottom:1px solid #e3e7eb;
+    text-align:left
+}
+th{background:#f0f3f6}
+.small{font-size:12px;color:#65727e}
+.alert{
+    border-left:5px solid #c0392b;
+    background:#fff0ef
+}
+.success{
+    border-left:5px solid #27ae60;
+    background:#effaf2
+}
+.login{max-width:400px;margin:80px auto}
+</style>
 </head>
+
 <body>
-  <h1>Katip Dosya Takip</h1>
-  <p>Sistem kuruluyor...</p>
+
+<!-- GİRİŞ -->
+
+<div id="loginScreen" class="login card">
+
+<h2>⚖️ Katip Dosya Takip</h2>
+
+<label>E-posta</label>
+<input id="email" type="email">
+
+<label>Şifre</label>
+<input id="password" type="password">
+
+<button class="primary" style="width:100%" onclick="login()">
+Giriş Yap
+</button>
+
+<p id="loginMsg" class="small"></p>
+
+</div>
+
+
+<!-- UYGULAMA -->
+
+<div id="app" class="hidden">
+
+<header>
+
+<h1>⚖️ Katip Dosya Takip</h1>
+
+<button class="secondary" onclick="logout()">
+Çıkış
+</button>
+
+</header>
+
+
+<div class="container">
+
+<div class="stats">
+
+<div class="stat">
+Derdest Dosya
+<strong id="derdest">0</strong>
+</div>
+
+<div class="stat">
+Arşiv
+<strong id="arsiv">0</strong>
+</div>
+
+<div class="stat">
+Kesinleştirilecek
+<strong id="kesin">0</strong>
+</div>
+
+<div class="stat">
+Akıbet Sorulacak
+<strong id="akibet">0</strong>
+</div>
+
+</div>
+
+<br>
+
+<div id="alerts"></div>
+
+
+<div class="tabs">
+
+<button class="tab active" onclick="section('home',this)">
+Ana Sayfa
+</button>
+
+<button class="tab" onclick="section('files',this)">
+Dosyalar
+</button>
+
+<button class="tab" onclick="section('notifications',this)">
+Tebligatlar
+</button>
+
+<button class="tab" onclick="section('memos',this)">
+Müzekkereler
+</button>
+
+<button class="tab" onclick="section('archive',this)">
+Arşiv
+</button>
+
+</div>
+
+
+<!-- ANA SAYFA -->
+
+<section id="home">
+
+<div class="card">
+
+<h2>Bugünkü İşler</h2>
+
+<div id="today"></div>
+
+</div>
+
+</section>
+
+
+<!-- DOSYALAR -->
+
+<section id="files" class="card hidden">
+
+<div style="display:flex;justify-content:space-between;align-items:center">
+
+<h2>Derdest Dosyalar</h2>
+
+<button class="primary" onclick="toggle('fileForm')">
++ Dosya Ekle
+</button>
+
+</div>
+
+<input
+id="search"
+placeholder="Dosya no, birim veya suç ara..."
+oninput="renderFiles()"
+>
+
+
+<div id="fileForm" class="card hidden">
+
+<h3>Yeni Dosya</h3>
+
+<div class="grid">
+
+<div>
+<label>Dosya No *</label>
+<input id="dosyaNo">
+</div>
+
+<div>
+<label>Birim</label>
+<input id="birim">
+</div>
+
+<div>
+<label>Suç Türü</label>
+<input id="suc">
+</div>
+
+<div>
+<label>Açılış Tarihi</label>
+<input id="acilis" type="date">
+</div>
+
+<div>
+<label>Karar Türü</label>
+<input id="kararTuru">
+</div>
+
+<div>
+<label>Karar Tarihi</label>
+<input id="kararTarihi" type="date">
+</div>
+
+</div>
+
+<label>Not</label>
+<textarea id="notlar"></textarea>
+
+<button class="primary" onclick="addFile()">
+Kaydet
+</button>
+
+<button class="secondary" onclick="toggle('fileForm')">
+Vazgeç
+</button>
+
+</div>
+
+
+<div style="overflow:auto">
+
+<table>
+
+<thead>
+<tr>
+<th>Dosya No</th>
+<th>Birim</th>
+<th>Suç</th>
+<th>Karar</th>
+<th>İşlem</th>
+</tr>
+</thead>
+
+<tbody id="fileTable"></tbody>
+
+</table>
+
+</div>
+
+</section>
+
+
+<!-- TEBLİGAT -->
+
+<section id="notifications" class="card hidden">
+
+<h2>Tebligat Takibi</h2>
+
+<p class="small">
+Tebliğ tarihi girildiğinde 14 günlük süre takip edilir.
+Son gün hafta sonu veya resmi tatil ise ilk iş gününe uzatılır.
+</p>
+
+<div class="grid">
+
+<div>
+<label>Dosya</label>
+<select id="tDosya"></select>
+</div>
+
+<div>
+<label>Tebliğ Tarihi</label>
+<input id="tarih" type="date">
+</div>
+
+</div>
+
+<button class="primary" onclick="addNotification()">
+Tebligat Ekle
+</button>
+
+<br><br>
+
+<div style="overflow:auto">
+
+<table>
+
+<thead>
+<tr>
+<th>Dosya</th>
+<th>Tebliğ</th>
+<th>Süre Sonu</th>
+<th>Kesinleştirme</th>
+<th>Durum</th>
+<th></th>
+</tr>
+</thead>
+
+<tbody id="notificationTable"></tbody>
+
+</table>
+
+</div>
+
+</section>
+
+
+<!-- MÜZEKKERE -->
+
+<section id="memos" class="card hidden">
+
+<h2>Müzekkere Takibi</h2>
+
+<p class="small">
+Müzekkere gönderim tarihinden itibaren 15 günlük cevap süresi takip edilir.
+Cevap gelmezse akıbet sorulacak olarak gösterilir.
+</p>
+
+<div class="grid">
+
+<div>
+<label>Dosya</label>
+<select id="mDosya"></select>
+</div>
+
+<div>
+<label>Gönderim Tarihi</label>
+<input id="mTarih" type="date">
+</div>
+
+</div>
+
+<button class="primary" onclick="addMemo()">
+Müzekkere Ekle
+</button>
+
+<br><br>
+
+<div style="overflow:auto">
+
+<table>
+
+<thead>
+<tr>
+<th>Dosya</th>
+<th>Gönderim</th>
+<th>Son Gün</th>
+<th>Durum</th>
+<th></th>
+</tr>
+</thead>
+
+<tbody id="memoTable"></tbody>
+
+</table>
+
+</div>
+
+</section>
+
+
+<!-- ARŞİV -->
+
+<section id="archive" class="card hidden">
+
+<h2>Sonuçlandırılmış / Arşiv</h2>
+
+<div style="overflow:auto">
+
+<table>
+
+<thead>
+<tr>
+<th>Dosya No</th>
+<th>Birim</th>
+<th>Karar</th>
+<th>Karar Tarihi</th>
+<th></th>
+</tr>
+</thead>
+
+<tbody id="archiveTable"></tbody>
+
+</table>
+
+</div>
+
+</section>
+
+</div>
+</div>
+
+
+<script>
+
+let user=null;
+let files=[];
+let notifications=[];
+let memos=[];
+
+
+function today(){
+    return new Date().toISOString().slice(0,10);
+}
+
+
+function formatDate(x){
+    if(!x)return "-";
+    const p=x.split("-");
+    return p[2]+"."+p[1]+"."+p[0];
+}
+
+
+function escapeHtml(x){
+
+    if(x===null || x===undefined)return "";
+
+    return String(x)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+
+function toggle(id){
+    document.getElementById(id).classList.toggle("hidden");
+}
+
+
+/* GİRİŞ */
+
+async function login(){
+
+    const email=document.getElementById("email").value;
+    const password=document.getElementById("password").value;
+    const msg=document.getElementById("loginMsg");
+
+    msg.textContent="Giriş yapılıyor...";
+
+    const {data,error}=await supabase.auth.signInWithPassword({
+        email,
+        password
+    });
+
+    if(error){
+        msg.textContent="Giriş başarısız: "+error.message;
+        return;
+    }
+
+    user=data.user;
+
+    document.getElementById("loginScreen").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+
+    await load();
+}
+
+
+async function logout(){
+    await supabase.auth.signOut();
+    location.reload();
+}
+
+
+/* SEKMELER */
+
+function section(id,button){
+
+    ["home","files","notifications","memos","archive"]
+    .forEach(x=>{
+        document.getElementById(x).classList.add("hidden");
+    });
+
+    document.getElementById(id).classList.remove("hidden");
+
+    document.querySelectorAll(".tab")
+    .forEach(x=>x.classList.remove("active"));
+
+    if(button)button.classList.add("active");
+}
+
+
+/* VERİLER */
+
+async function load(){
+
+    const f=await supabase
+    .from("dosyalar")
+    .select("*")
+    .order("created_at",{ascending:false});
+
+    if(f.error){
+        alert(f.error.message);
+        return;
+    }
+
+    files=f.data||[];
+
+
+    const t=await supabase
+    .from("tebligat_takip")
+    .select("*");
+
+    if(t.error){
+        console.log("Tebligat:",t.error.message);
+    }
+
+    notifications=t.data||[];
+
+
+    const m=await supabase
+    .from("muzekkereler")
+    .select("*");
+
+    if(m.error){
+        console.log("Müzekkere:",m.error.message);
+    }
+
+    memos=m.data||[];
+
+    renderAll();
+}
+
+
+/* DOSYA EKLE */
+
+async function addFile(){
+
+    const dosyaNo=
+    document.getElementById("dosyaNo").value.trim();
+
+    if(!dosyaNo){
+        alert("Dosya numarası gerekli.");
+        return;
+    }
+
+    const {error}=await supabase
+    .from("dosyalar")
+    .insert({
+
+        owner_id:user.id,
+
+        dosya_no:dosyaNo,
+
+        birim:
+        document.getElementById("birim").value,
+
+        suc_turu:
+        document.getElementById("suc").value,
+
+        acilis_tarihi:
+        document.getElementById("acilis").value||null,
+
+        karar_turu:
+        document.getElementById("kararTuru").value,
+
+        karar_tarihi:
+        document.getElementById("kararTarihi").value||null,
+
+        notlar:
+        document.getElementById("notlar").value,
+
+        durum:"derdest"
+
+    });
+
+    if(error){
+        alert(error.message);
+        return;
+    }
+
+    alert("Dosya kaydedildi.");
+
+    await load();
+}
+
+
+/* DOSYALAR */
+
+function renderFiles(){
+
+    const q=
+    (document.getElementById("search")?.value||"")
+    .toLowerCase();
+
+    const list=files.filter(f=>
+        f.durum==="derdest" &&
+        (
+            (f.dosya_no||"").toLowerCase().includes(q) ||
+            (f.birim||"").toLowerCase().includes(q) ||
+            (f.suc_turu||"").toLowerCase().includes(q)
+        )
+    );
+
+    document.getElementById("fileTable").innerHTML=
+    list.map(f=>`
+
+    <tr>
+
+    <td>
+    <strong>${escapeHtml(f.dosya_no)}</strong>
+    </td>
+
+    <td>${escapeHtml(f.birim||"-")}</td>
+
+    <td>${escapeHtml(f.suc_turu||"-")}</td>
+
+    <td>
+    ${escapeHtml(f.karar_turu||"-")}
+    <br>
+    <span class="small">
+    ${formatDate(f.karar_tarihi)}
+    </span>
+    </td>
+
+    <td>
+
+    <button
+    class="secondary"
+    onclick="archiveFile('${f.id}')">
+    Arşivle
+    </button>
+
+    </td>
+
+    </tr>
+
+    `).join("");
+}
+
+
+async function archiveFile(id){
+
+    if(!confirm("Dosya sonuçlandırıldı ve arşive alınsın mı?"))
+    return;
+
+    const {error}=await supabase
+    .from("dosyalar")
+    .update({
+        durum:"arsiv",
+        son_islem_tarihi:today()
+    })
+    .eq("id",id)
+    .eq("owner_id",user.id);
+
+    if(error){
+        alert(error.message);
+        return;
+    }
+
+    await load();
+}
+
+
+/* ARŞİV */
+
+function renderArchive(){
+
+    const list=files.filter(x=>x.durum==="arsiv");
+
+    document.getElementById("archiveTable").innerHTML=
+    list.map(f=>`
+
+    <tr>
+
+    <td>${escapeHtml(f.dosya_no)}</td>
+
+    <td>${escapeHtml(f.birim||"-")}</td>
+
+    <td>${escapeHtml(f.karar_turu||"-")}</td>
+
+    <td>${formatDate(f.karar_tarihi)}</td>
+
+    <td>
+
+    <button
+    class="secondary"
+    onclick="restoreFile('${f.id}')">
+    Derdeste Al
+    </button>
+
+    </td>
+
+    </tr>
+
+    `).join("");
+}
+
+
+async function restoreFile(id){
+
+    await supabase
+    .from("dosyalar")
+    .update({durum:"derdest"})
+    .eq("id",id)
+    .eq("owner_id",user.id);
+
+    await load();
+}
+
+
+/* DOSYA SEÇİMLERİ */
+
+function fillSelects(){
+
+    const active=files.filter(x=>x.durum==="derdest");
+
+    const html=
+    '<option value="">Dosya seç...</option>'+
+    active.map(x=>
+    `<option value="${x.id}">
+    ${escapeHtml(x.dosya_no)}
+    </option>`
+    ).join("");
+
+    document.getElementById("tDosya").innerHTML=html;
+    document.getElementById("mDosya").innerHTML=html;
+}
+
+
+/* TEBLİGAT */
+
+async function addNotification(){
+
+    const dosya=
+    document.getElementById("tDosya").value;
+
+    const tarih=
+    document.getElementById("tarih").value;
+
+    if(!dosya||!tarih){
+        alert("Dosya ve tebliğ tarihi gerekli.");
+        return;
+    }
+
+    const {error}=await supabase
+    .from("tebligat_takip")
+    .insert({
+
+        owner_id:user.id,
+
+        dosya_id:dosya,
+
+        teblig_tarihi:tarih
+
+    });
+
+    if(error){
+        alert(error.message);
+        return;
+    }
+
+    alert("Tebligat takibe alındı.");
+
+    await load();
+}
+
+
+function renderNotifications(){
+
+    document.getElementById("notificationTable").innerHTML=
+    notifications.map(n=>`
+
+    <tr>
+
+    <td>${escapeHtml(n.dosya_no||"-")}</td>
+
+    <td>${formatDate(n.teblig_tarihi)}</td>
+
+    <td>${formatDate(n.sure_son_gunu)}</td>
+
+    <td>${formatDate(n.kesinlestirme_tarihi)}</td>
+
+    <td>
+
+    ${
+        n.durum==="kesinlesti"
+        ?
+        '<span class="badge green">KESİNLEŞTİ</span>'
+        :
+        n.kesinlestirme_tarihi &&
+        today()>=n.kesinlestirme_tarihi
+        ?
+        '<span class="badge red">KESİNLEŞTİRİLEBİLİR</span>'
+        :
+        '<span class="badge gray">BEKLİYOR</span>'
+    }
+
+    </td>
+
+    <td>
+
+    ${
+        n.durum!=="kesinlesti"
+        ?
+        `<button
+        class="primary"
+        onclick="finalizeNotification('${n.id}')">
+        Kesinleştir
+        </button>`
+        :
+        ""
+    }
+
+    </td>
+
+    </tr>
+
+    `).join("");
+}
+
+
+async function finalizeNotification(id){
+
+    if(!confirm("Karar kesinleştirildi olarak işaretlensin mi?"))
+    return;
+
+    await supabase
+    .from("tebligat_takip")
+    .update({
+        durum:"kesinlesti",
+        kesinlestirme_tarihi:today()
+    })
+    .eq("id",id)
+    .eq("owner_id",user.id);
+
+    await load();
+}
+
+
+/* MÜZEKKERE */
+
+async function addMemo(){
+
+    const dosya=
+    document.getElementById("mDosya").value;
+
+    const tarih=
+    document.getElementById("mTarih").value;
+
+    if(!dosya||!tarih){
+        alert("Dosya ve tarih gerekli.");
+        return;
+    }
+
+    const {error}=await supabase
+    .from("muzekkereler")
+    .insert({
+
+        owner_id:user.id,
+
+        dosya_id:dosya,
+
+        gonderim_tarihi:tarih
+
+    });
+
+    if(error){
+        alert(error.message);
+        return;
+    }
+
+    alert("Müzekkere takibe alındı.");
+
+    await load();
+}
+
+
+function renderMemos(){
+
+    document.getElementById("memoTable").innerHTML=
+    memos.map(m=>`
+
+    <tr>
+
+    <td>${escapeHtml(m.dosya_no||"-")}</td>
+
+    <td>${formatDate(m.gonderim_tarihi)}</td>
+
+    <td>${formatDate(m.sure_son_gunu)}</td>
+
+    <td>
+
+    ${
+        m.cevap_geldi
+        ?
+        '<span class="badge green">CEVAP GELDİ</span>'
+        :
+        m.akibet_tarihi &&
+        today()>=m.akibet_tarihi
+        ?
+        '<span class="badge red">AKIBET SORULMALI</span>'
+        :
+        '<span class="badge gray">BEKLİYOR</span>'
+    }
+
+    </td>
+
+    <td>
+
+    ${
+        !m.cevap_geldi
+        ?
+        `<button
+        class="primary"
+        onclick="memoAnswered('${m.id}')">
+        Cevap Geldi
+        </button>`
+        :
+        ""
+    }
+
+    </td>
+
+    </tr>
+
+    `).join("");
+}
+
+
+async function memoAnswered(id){
+
+    await supabase
+    .from("muzekkereler")
+    .update({
+        cevap_geldi:true,
+        cevap_tarihi:today()
+    })
+    .eq("id",id)
+    .eq("owner_id",user.id);
+
+    await load();
+}
+
+
+/* ANA SAYFA */
+
+function renderDashboard(){
+
+    const derdest=
+    files.filter(x=>x.durum==="derdest").length;
+
+    const arsiv=
+    files.filter(x=>x.durum==="arsiv").length;
+
+    const kesin=
+    notifications.filter(x=>
+        x.durum!=="kesinlesti" &&
+        x.kesinlestirme_tarihi &&
+        today()>=x.kesinlestirme_tarihi
+    ).length;
+
+    const akibet=
+    memos.filter(x=>
+        !x.cevap_geldi &&
+        x.akibet_tarihi &&
+        today()>=x.akibet_tarihi
+    ).length;
+
+
+    document.getElementById("derdest").textContent=derdest;
+    document.getElementById("arsiv").textContent=arsiv;
+    document.getElementById("kesin").textContent=kesin;
+    document.getElementById("akibet").textContent=akibet;
+
+
+    let html="";
+
+    if(kesin){
+
+        html+=`
+        <div class="card alert">
+        <strong>🔴 ${kesin} karar kesinleştirilebilir.</strong>
+        </div>
+        `;
+
+    }
+
+    if(akibet){
+
+        html+=`
+        <div class="card alert">
+        <strong>🔴 ${akibet} müzekkerenin akıbeti sorulmalı.</strong>
+        </div>
+        `;
+
+    }
+
+    if(!html){
+
+        html=`
+        <div class="card success">
+        <strong>✅ Takip edilmesi gereken acil işlem yok.</strong>
+        </div>
+        `;
+
+    }
+
+    document.getElementById("alerts").innerHTML=html;
+    document.getElementById("today").innerHTML=html;
+}
+
+
+function renderAll(){
+
+    fillSelects();
+    renderFiles();
+    renderArchive();
+    renderNotifications();
+    renderMemos();
+    renderDashboard();
+
+}
+
+
+/* OTURUM KONTROLÜ */
+
+(async()=>{
+
+    const {data}=await supabase.auth.getSession();
+
+    if(data.session){
+
+        user=data.session.user;
+
+        document
+        .getElementById("loginScreen")
+        .classList.add("hidden");
+
+        document
+        .getElementById("app")
+        .classList.remove("hidden");
+
+        await load();
+    }
+
+})();
+
+</script>
+
 </body>
 </html>
