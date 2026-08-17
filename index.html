@@ -605,7 +605,7 @@ async function load(){
     files=f.data||[];
     console.log("DOSYALAR:", files);
 
-    const t=await supabase
+    const t=await supabaseClient
     .from("tebligat_takip")
     .select("*");
 
@@ -616,7 +616,7 @@ async function load(){
     notifications=t.data||[];
 
 
-    const m=await supabase
+    const m=await supabaseClient
     .from("muzekkereler")
     .select("*");
 
@@ -742,7 +742,7 @@ async function archiveFile(id){
     if(!confirm("Dosya sonuçlandırıldı ve arşive alınsın mı?"))
     return;
 
-    const {error}=await supabase
+    const {error}=await supabaseClient
     .from("dosyalar")
     .update({
         durum:"arsiv",
@@ -797,7 +797,7 @@ function renderArchive(){
 
 async function restoreFile(id){
 
-    await supabase
+    await supabaseClient
     .from("dosyalar")
     .update({durum:"derdest"})
     .eq("id",id)
@@ -841,7 +841,7 @@ async function addNotification(){
         return;
     }
 
-    const {error}=await supabase
+    const {error}=await supabaseClient
     .from("tebligat_takip")
     .insert({
 
@@ -923,7 +923,7 @@ async function finalizeNotification(id){
     if(!confirm("Karar kesinleştirildi olarak işaretlensin mi?"))
     return;
 
-    await supabase
+    await supabaseClient
     .from("tebligat_takip")
     .update({
         durum:"kesinlesti",
@@ -951,7 +951,7 @@ async function addMemo(){
         return;
     }
 
-    const {error}=await supabase
+    const {error}=await supabaseClient
     .from("muzekkereler")
     .insert({
 
@@ -1028,7 +1028,7 @@ function renderMemos(){
 
 async function memoAnswered(id){
 
-    await supabase
+    await supabaseClient
     .from("muzekkereler")
     .update({
         cevap_geldi:true,
