@@ -981,7 +981,7 @@ function renderMemos(){
 
     <tr>
 
-    <td>${escapeHtml(m.dosya_no||"-")}</td>
+   ${escapeHtml(files.find(f => f.id === m.dosya_id)?.dosya_no || "-")}
 
     <td>${formatDate(m.gonderim_tarihi)}</td>
 
