@@ -514,19 +514,18 @@ function toggle(id){
 
 async function login(){
 
-    const client = window.supabase.createClient(
-        SUPABASE_URL,
-        SUPABASE_KEY
-    );
-
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
     const msg = document.getElementById("loginMsg");
-
-
     msg.textContent = "Giriş yapılıyor...";
 
     try {
+
+        const client = window.supabase.createClient(
+            SUPABASE_URL,
+            SUPABASE_KEY
+        );
+
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value;
 
         const { data, error } =
             await client.auth.signInWithPassword({
@@ -554,19 +553,16 @@ async function login(){
             .getElementById("app")
             .classList.remove("hidden");
 
-        try {
-            //await load();
-        } catch(e) {
-            msg.textContent = "Veriler yüklenirken hata: " + e.message;
-        }
+        // load şimdilik kapalı
+        // await load();
 
     } catch(e) {
 
-        msg.textContent = "Bağlantı hatası: " + e.message;
+        msg.textContent =
+            "Hata: " + (e && e.message ? e.message : e);
 
     }
 }
-
 
 async function logout(){
     await supabase.auth.signOut();
