@@ -12,9 +12,7 @@
 window. SUPABASE_URL = "https://rvnilcttrujzuxojpqul.supabase.co"
 window. SUPABASE_KEY = "sb_publishable_dPfH2uempxwuvhOhxA3Lbg_jGgTDLLw"
 
-const { createClient } = window.supabase;
-
-const supabase = createClient(
+const supabaseClient = window.supabase.createClient(
     window.SUPABASE_URL,
     window.SUPABASE_KEY
 );
@@ -521,10 +519,7 @@ async function login(){
 
     try {
 
-     const client = createClient(
-    window.SUPABASE_URL,
-         window.SUPABASE_KEY
-     );
+   const client = supabaseClient;
             
             
         
