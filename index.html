@@ -514,28 +514,51 @@ function toggle(id){
 
 async function login(){
 
-    const email=document.getElementById("email").value;
-    const password=document.getElementById("password").value;
-    const msg=document.getElementById("loginMsg");
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const msg = document.getElementById("loginMsg");
 
-    msg.textContent="Giriş yapılıyor...";
+    msg.textContent = "Giriş yapılıyor...";
 
-    const {data,error}=await supabase.auth.signInWithPassword({
-        email,
-        password
-    });
+    try {
 
-    if(error){
-        msg.textContent="Giriş başarısız: "+error.message;
-        return;
+        const { data, error } =
+            await supabase.auth.signInWithPassword({
+                email: email,
+                password: password
+            });
+
+        if(error){
+            msg.textContent = "Giriş başarısız: " + error.message;
+            return;
+        }
+
+        if(!data || !data.user){
+            msg.textContent = "Kullanıcı bilgisi alınamadı.";
+            return;
+        }
+
+        user = data.user;
+
+        document
+            .getElementById("loginScreen")
+            .classList.add("hidden");
+
+        document
+            .getElementById("app")
+            .classList.remove("hidden");
+
+        try {
+            await load();
+        } catch(e) {
+            msg.textContent = "Veriler yüklenirken hata: " + e.message;
+        }
+
+    } catch(e) {
+
+        msg.textContent = "Bağlantı hatası: " + e.message;
+
     }
-
-    user=data.user;
-
-    document.getElementById("loginScreen").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
-
-    await load();
 }
 
 
