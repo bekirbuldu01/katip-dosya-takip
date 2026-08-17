@@ -565,7 +565,7 @@ async function login(){
 }
 
 async function logout(){
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
     location.reload();
 }
 
@@ -603,7 +603,7 @@ async function load(){
     }
 
     files=f.data||[];
-
+    console.log("DOSYALAR:", files);
 
     const t=await supabase
     .from("tebligat_takip")
@@ -1125,7 +1125,7 @@ function renderAll(){
 
 (async()=>{
 
-    const {data}=await supabase.auth.getSession();
+    const {data}=await supabaseClient.auth.getSession();
 
     if(data.session){
 
