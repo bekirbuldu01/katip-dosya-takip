@@ -642,7 +642,7 @@ async function addFile(){
         return;
     }
 
-    const {error}=await supabase
+    const {error}=await supabaseClient
     .from("dosyalar")
     .insert({
 
