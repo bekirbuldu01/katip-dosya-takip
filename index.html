@@ -514,16 +514,22 @@ function toggle(id){
 
 async function login(){
 
+    const client = window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+    );
+
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
     const msg = document.getElementById("loginMsg");
+
 
     msg.textContent = "Giriş yapılıyor...";
 
     try {
 
         const { data, error } =
-            await supabase.auth.signInWithPassword({
+            await client.auth.signInWithPassword({
                 email: email,
                 password: password
             });
