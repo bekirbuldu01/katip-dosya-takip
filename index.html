@@ -3,6 +3,7 @@
 
 
 
+
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -385,7 +386,6 @@ Vazgeç
 
 <h2>Tebligat Takibi</h2>
 
-<input id="notificationSearch" placeholder="Dosya no veya tarihe göre ara..." oninput="renderNotifications()">
 <button class="secondary" onclick="toggleNotificationSort()" style="margin-top:8px">
 ⏱ Süreye göre: <span id="notificationSortLabel">Artan</span>
 </button>
@@ -399,12 +399,32 @@ Son gün hafta sonu veya resmi tatil ise ilk iş gününe uzatılır.
 
 <div>
 <label>Dosya Ara</label>
-<input id="tDosyaSearch" placeholder="Dosya numarasını ara..." oninput="fillSelects()">
+
 </div>
 
 <div>
+
 <label>Dosya</label>
-<select id="tDosya"></select>
+<div class="searchable-file-select" style="position:relative">
+    
+    <div id="tDosyaPicker" style="position:relative">
+<button type="button" id="tDosyaPickerButton" class="secondary"
+style="width:100%;text-align:left" onclick="toggleNotificationFilePicker()">
+<span id="tDosyaPickerLabel">Dosya seç...</span><span style="float:right">▾</span>
+</button>
+<div id="tDosyaPickerPanel" class="card hidden"
+style="position:absolute;z-index:9999;left:0;right:0;top:calc(100% + 4px);padding:8px;background:#fff">
+<input id="tDosyaSearch" type="text" autocomplete="off"
+placeholder="Dosya numarası ara..." oninput="filterNotificationFilePicker()">
+<div id="tDosyaPickerList" style="max-height:260px;overflow:auto;margin-top:6px"></div>
+</div>
+<input id="tDosya" type="hidden" value="">
+</div>
+    <div id="tDosyaDropdown"
+         class="card hidden"
+         style="position:absolute;z-index:1000;left:0;right:0;top:100%;max-height:260px;overflow:auto;margin-top:4px;padding:6px;background:var(--card,#fff)">
+    </div>
+</div>
 </div>
 
 <div>
@@ -612,7 +632,7 @@ Cevabı geldi olarak işaretlenen müzekkereler burada arşivlenir.
 
 <section id="inactivity" class="card hidden">
 <h2>⏱ Süre Kontrolü</h2>
-<p class="small">Dosyanın son müzekkere işlemi esas alınır. Son müzekkere gönderim tarihinden itibaren 60 günden fazla işlem yapılmamışsa dosya burada gecikmede gösterilir. Akıbet veya tekit tarihi girildiğinde o tarih yeni müzekkere gönderim tarihi kabul edilir ve süre sıfırlanır.</p>
+<p class="small">Yalnızca müzekkere gönderilmiş aktif dosyalar takip edilir. Her müzekkere ayrı ayrı gösterilir. Müzekkere gönderim tarihinden itibaren 1 gün dahi geçmiş olsa süre görünür; 60 günü aşanlar gecikme uyarısına alınır.</p>
 <div class="stats" style="margin:12px 0 20px">
 <div class="stat">Toplam Takipte<strong id="inactivityTotal">0</strong></div>
 <div class="stat">🟢 Normal<strong id="inactivityNormal">0</strong></div>
@@ -620,8 +640,11 @@ Cevabı geldi olarak işaretlenen müzekkereler burada arşivlenir.
 <div class="stat">🔴 Gecikmede<strong id="inactivityCount">0</strong></div>
 </div>
 <input id="inactivitySearch" placeholder="Dosya no, birim veya suç ara..." oninput="renderInactivity()">
-<p class="small">Tüm derdest dosyaların son müzekkere işlemi gösterilir. 45 güne kadar normal, 45–60 gün arası yaklaşan, 60 günün üzeri gecikmede kabul edilir. Akıbet veya tekit tarihi girildiğinde yeni işlem tarihi esas alınır.</p>
-<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Dosya No</th><th>Birim</th><th>Son İşlem</th><th>Son İşlem Tarihi</th><th>İşlemsizlik</th><th>Durum</th></tr></thead><tbody id="inactivityTable"></tbody></table></div>
+<p class="small">Sadece müzekkere gönderilmiş dosyalar listelenir. Her müzekkere ayrı satırda gösterilir. 1–44 gün normal, 45–60 gün yaklaşan, 60 günün üzeri gecikmede kabul edilir.</p>
+<div style="overflow:auto;margin-top:12px"><table><thead><tr>
+<th>Dosya No</th><th>Müzekkere Tarihi</th><th>Süre Sonu</th>
+<th>Geçen Süre</th><th>Durum</th><th>Takip</th>
+</tr></thead><tbody id="inactivityTable"></tbody></table></div>
 </section>
 
 
@@ -1506,7 +1529,14 @@ async function restoreFile(id){
 /* DOSYA SEÇİMLERİ */
 
 function fillSelects(){
+    window.notificationFilePickerItems = (typeof files !== "undefined" ? files : [])
+        .filter(x => x && x.durum !== "arsiv")
+        .map(x => ({id:x.id, dosya_no:x.dosya_no||""}));
+    setTimeout(renderNotificationFilePickerList,0);
+
     const tDosya = document.getElementById("tDosya");
+    const tDosyaSearch = document.getElementById("tDosyaSearch");
+    const tDosyaDropdown = document.getElementById("tDosyaDropdown");
     const mDosya = document.getElementById("mDosya");
 
     if(!tDosya || !mDosya) return;
@@ -1530,13 +1560,19 @@ function fillSelects(){
         return !q || text.includes(q);
     });
 
-    const html =
-        '<option value="">Dosya seç...</option>' +
-        active.map(x =>
-            `<option value="${x.id}">${escapeHtml(x.dosya_no)}</option>`
-        ).join("");
+    const notificationFileOptions = active.map(x => ({
+        id: x.id,
+        dosya_no: x.dosya_no || ""
+    }));
 
-    tDosya.innerHTML = html;
+    window.notificationFileOptions = notificationFileOptions;
+
+    if(tDosyaSearch){
+        const selected = notificationFileOptions.find(x => x.id === tDosya?.value);
+        tDosyaSearch.value = selected?.dosya_no || "";
+    }
+
+    renderNotificationFileDropdown();
 
     /* Müzekkere/tebligat dışındaki dosya seçimleri eski davranışını korur. */
     const allActive = files.filter(x => x.durum !== "arsiv");
@@ -1546,14 +1582,68 @@ function fillSelects(){
             `<option value="${x.id}">${escapeHtml(x.dosya_no)}</option>`
         ).join("");
 
-    if([...tDosya.options].some(o => o.value === eskiT)){
+    if(tDosya && eskiT){
         tDosya.value = eskiT;
+        const selected = (window.notificationFileOptions || []).find(x => x.id === eskiT);
+        if(tDosyaSearch) tDosyaSearch.value = selected?.dosya_no || "";
     }
 
     if([...mDosya.options].some(o => o.value === eskiM)){
         mDosya.value = eskiM;
     }
 }
+
+
+function renderNotificationFileDropdown(){
+    const box = document.getElementById("tDosyaDropdown");
+    const input = document.getElementById("tDosyaSearch");
+    if(!box || !input) return;
+
+    const q = (input.value || "").toLowerCase().trim();
+    const options = (window.notificationFileOptions || []).filter(x =>
+        !q || String(x.dosya_no).toLowerCase().includes(q)
+    );
+
+    box.innerHTML = options.length
+        ? options.map(x => `
+            <div class="file-search-option"
+                 style="padding:9px 10px;cursor:pointer;border-radius:6px"
+                 onmousedown="selectNotificationFile('${String(x.id).replace(/'/g,"\\'")}','${escapeHtml(x.dosya_no).replace(/'/g,"\\'")}')">
+                ${escapeHtml(x.dosya_no)}
+            </div>
+          `).join("")
+        : '<div class="small" style="padding:9px">Dosya bulunamadı.</div>';
+}
+
+function openNotificationFilePicker(){
+    renderNotificationFileDropdown();
+    document.getElementById("tDosyaDropdown")?.classList.remove("hidden");
+}
+
+function filterNotificationFiles(){
+    const box = document.getElementById("tDosyaDropdown");
+    if(box) box.classList.remove("hidden");
+    renderNotificationFileDropdown();
+}
+
+function selectNotificationFile(id, dosyaNo){
+    const hidden = document.getElementById("tDosya");
+    const input = document.getElementById("tDosyaSearch");
+    const box = document.getElementById("tDosyaDropdown");
+
+    if(hidden) hidden.value = id;
+    if(input) input.value = dosyaNo || "";
+    if(box) box.classList.add("hidden");
+
+    renderNotifications();
+}
+
+document.addEventListener("click", function(e){
+    const wrap = e.target.closest(".searchable-file-select");
+    if(!wrap){
+        document.getElementById("tDosyaDropdown")?.classList.add("hidden");
+    }
+});
 
 function refreshNotificationFileList(){
     fillSelects();
@@ -1662,10 +1752,65 @@ function notificationCanBeFinalized(n){
     return !!tarih && today() >= tarih;
 }
 
+
+window.notificationFilePickerItems = window.notificationFilePickerItems || [];
+
+function renderNotificationFilePickerList(){
+    const list=document.getElementById("tDosyaPickerList");
+    const input=document.getElementById("tDosyaSearch");
+    if(!list)return;
+    const q=(input?.value||"").toLocaleLowerCase("tr-TR").trim();
+    const items=(window.notificationFilePickerItems||[]).filter(x=>
+        !q || String(x.dosya_no||"").toLocaleLowerCase("tr-TR").includes(q)
+    );
+    list.innerHTML=items.length ? items.map(x=>`
+        <div style="padding:9px;cursor:pointer;border-bottom:1px solid #eee"
+             data-id="${escapeHtml(String(x.id))}"
+             data-no="${escapeHtml(String(x.dosya_no||""))}"
+             onclick="chooseNotificationFile(this.dataset.id,this.dataset.no)">
+            ${escapeHtml(x.dosya_no||"-")}
+        </div>`).join("") :
+        '<div class="small" style="padding:9px">Dosya bulunamadı.</div>';
+}
+
+function toggleNotificationFilePicker(){
+    const panel=document.getElementById("tDosyaPickerPanel");
+    if(!panel)return;
+    panel.classList.toggle("hidden");
+    if(!panel.classList.contains("hidden")){
+        const input=document.getElementById("tDosyaSearch");
+        if(input){input.value="";setTimeout(()=>input.focus(),0);}
+        renderNotificationFilePickerList();
+    }
+}
+
+function filterNotificationFilePicker(){
+    const panel=document.getElementById("tDosyaPickerPanel");
+    if(panel)panel.classList.remove("hidden");
+    renderNotificationFilePickerList();
+}
+
+function chooseNotificationFile(id,no){
+    const hidden=document.getElementById("tDosya");
+    const label=document.getElementById("tDosyaPickerLabel");
+    const panel=document.getElementById("tDosyaPickerPanel");
+    if(hidden)hidden.value=id;
+    if(label)label.textContent=no||"Dosya seç...";
+    if(panel)panel.classList.add("hidden");
+    if(typeof renderNotifications==="function")renderNotifications();
+}
+
+document.addEventListener("click",function(e){
+    const picker=document.getElementById("tDosyaPicker");
+    if(picker && !picker.contains(e.target)){
+        document.getElementById("tDosyaPickerPanel")?.classList.add("hidden");
+    }
+});
+
 function renderNotifications(){
 
     const selectedType = document.getElementById("tTebligatTuru")?.value || "genel";
-    const q = (document.getElementById("notificationSearch")?.value || "").toLowerCase();
+    const q = (document.getElementById("tDosyaSearch")?.value || "").toLowerCase();
 
     const matches = n => {
         if(getNotificationType(n.id) !== selectedType) return false;
@@ -2498,54 +2643,55 @@ function renderHomeDelayedReminder(){
 }
 
 function renderInactivity(){
-    const table=document.getElementById("inactivityTable");
-    if(!table)return;
-    const q=(document.getElementById("inactivitySearch")?.value||"").toLowerCase();
+    const table = document.getElementById("inactivityTable");
+    if(!table) return;
 
-    const rows=files.filter(f=>f.durum==="derdest" && f.karar_turu!=="kamu_davasinin_ertelenmesi").map(f=>{
-        const memo=getLastMemoForFile(f.id);
-        const lastDate=memo?.gonderim_tarihi||null;
-        const days=lastDate?Math.max(0,daysBetween(lastDate,today())):null;
-        let status="no-memo", label="Müzekkere bekleniyor", cls="gray";
-        if(lastDate){
-            if(days>60){ status="late"; label="60 GÜNÜ AŞTI"; cls="red"; }
-            else if(days>=45){ status="approaching"; label="YAKLAŞIYOR"; cls="orange"; }
-            else { status="normal"; label="NORMAL"; cls="green"; }
-        }
-        return {f,memo,lastDate,days,status,label,cls};
-    }).filter(x=>{
-        const text=[x.f.dosya_no,x.f.birim,x.f.suc_turu].map(v=>String(v||"").toLowerCase()).join(" ");
-        return !q||text.includes(q);
-    }).sort((a,b)=>{
-        if(a.days===null && b.days!==null)return 1;
-        if(a.days!==null && b.days===null)return -1;
-        return (b.days??-1)-(a.days??-1);
-    });
+    const q = (document.getElementById("inactivitySearch")?.value || "").toLowerCase().trim();
+    const todayStr = today();
 
-    const normal=rows.filter(x=>x.status==="normal").length;
-    const approaching=rows.filter(x=>x.status==="approaching").length;
-    const late=rows.filter(x=>x.status==="late").length;
-    const totalEl=document.getElementById("inactivityTotal");
-    const normalEl=document.getElementById("inactivityNormal");
-    const approachingEl=document.getElementById("inactivityApproaching");
-    const countEl=document.getElementById("inactivityCount");
-    if(totalEl)totalEl.textContent=rows.length;
-    if(normalEl)normalEl.textContent=normal;
-    if(approachingEl)approachingEl.textContent=approaching;
-    if(countEl)countEl.textContent=late;
+    const rows = memos
+        .map(getMemoState)
+        .filter(m => m && m.gonderim_tarihi && !m.cevap_geldi)
+        .map(m => {
+            const f = files.find(x => x.id === m.dosya_id);
+            const sonGun = m.sure_son_gunu || addDays(m.gonderim_tarihi,15);
+            const days = Math.max(0, daysBetween(m.gonderim_tarihi,todayStr));
+            const overdue = todayStr >= sonGun;
+            const overdueDays = overdue ? Math.max(0,daysBetween(sonGun,todayStr)) : 0;
+            const remaining = overdue ? 0 : Math.max(0,daysBetween(todayStr,sonGun));
+            return {m,f,sonGun,days,overdue,overdueDays,remaining};
+        })
+        .filter(x => {
+            const no = x.f?.dosya_no || "";
+            return !q ||
+                no.toLowerCase().includes(q) ||
+                String(x.m.gonderim_tarihi||"").includes(q) ||
+                String(x.sonGun||"").includes(q);
+        })
+        .sort((a,b) => {
+            if(a.overdue !== b.overdue) return a.overdue ? -1 : 1;
+            return a.overdue
+                ? b.overdueDays - a.overdueDays
+                : a.remaining - b.remaining;
+        });
 
-    table.innerHTML=rows.length?rows.map(x=>{
-        const action=x.memo?.akibet_soruldu?"Akıbet":x.memo?.tekit_edildi?"Tekit":"Müzekkere";
-        const daysText=x.days===null?"—":`${x.days} gün`;
-        return `<tr>
-            <td><strong>${escapeHtml(x.f.dosya_no||"-")}</strong></td>
-            <td>${escapeHtml(x.f.birim||"-")}</td>
-            <td>${x.lastDate?action:"Müzekkere yok"}</td>
-            <td>${x.lastDate?formatDate(x.lastDate):"—"}</td>
-            <td><span class="badge ${x.cls}">${daysText}</span></td>
-            <td><span class="badge ${x.cls}">${x.label}</span></td>
-        </tr>`;
-    }).join(""):`<tr><td colspan="6" class="small">Derdest dosya bulunmuyor.</td></tr>`;
+    table.innerHTML = rows.length ? rows.map(x => `
+        <tr>
+            <td><strong>${escapeHtml(x.f?.dosya_no || "-")}</strong></td>
+            <td>${formatDate(x.m.gonderim_tarihi)}</td>
+            <td>${formatDate(x.sonGun)}</td>
+            <td>${x.overdue
+                ? `<span class="badge red">${x.overdueDays} gün gecikmiş</span>`
+                : `<span class="badge gray">${x.days} gün geçti</span>`}</td>
+            <td>${x.overdue
+                ? '<span class="badge red">SÜRESİ GEÇTİ</span>'
+                : '<span class="badge green">BEKLİYOR</span>'}</td>
+            <td>${x.m.akibet_soruldu
+                ? '<span class="badge green">AKIBET SORULDU</span>'
+                : '<span class="badge gray">CEVAP BEKLENİYOR</span>'}</td>
+            <td><span class="small">Aktif müzekkere</span></td>
+        </tr>
+    `).join("") : `<tr><td colspan="7" class="small">Cevap bekleyen müzekkere bulunmuyor.</td></tr>`;
 }
 
 function requestDate(title,defaultDate){
