@@ -293,6 +293,9 @@ id="search"
 placeholder="Dosya no, birim veya suç ara..."
 oninput="renderFiles()"
 >
+<button class="secondary" onclick="toggleListSort('files')" style="margin-top:8px">
+↕ Tarihe göre: <span id="filesSortLabel">Artan</span>
+</button>
 
 
 <div id="fileForm" class="card hidden">
@@ -377,6 +380,9 @@ Vazgeç
 <h2>Tebligat Takibi</h2>
 
 <input id="notificationSearch" placeholder="Dosya no veya tarihe göre ara..." oninput="renderNotifications()">
+<button class="secondary" onclick="toggleNotificationSort()" style="margin-top:8px">
+⏱ Süreye göre: <span id="notificationSortLabel">Artan</span>
+</button>
 
 <p class="small">
 Tebliğ tarihi girildiğinde 14 günlük süre takip edilir.
@@ -434,6 +440,9 @@ Tebligat Ekle
 <h2>Kesinleştirilen Tebligatlar</h2>
 
 <input id="finalizedNotificationSearch" placeholder="Kesinleşen tebligatlarda ara..." oninput="renderFinalizedNotifications()">
+<button class="secondary" onclick="toggleListSort('finalizedNotifications')" style="margin-top:8px">
+↕ Tarihe göre: <span id="finalizedNotificationsSortLabel">Azalan</span>
+</button>
 
 <p class="small">
 Kesinleştir butonuna basılan tebligatlar buraya taşınır ve aktif takip listesinden çıkar.
@@ -469,6 +478,9 @@ Kesinleştir butonuna basılan tebligatlar buraya taşınır ve aktif takip list
 <h2>Müzekkere Takibi</h2>
 
 <input id="memoSearch" placeholder="Dosya no veya tarihe göre ara..." oninput="renderMemos()">
+<button class="secondary" onclick="toggleListSort('memos')" style="margin-top:8px">
+⏱ Süreye göre: <span id="memosSortLabel">Artan</span>
+</button>
 
 <p class="small">
 Müzekkere gönderim tarihinden itibaren 15 günlük cevap süresi takip edilir.
@@ -526,6 +538,9 @@ Müzekkere Ekle
 <h2>Tamamlanan Müzekkereler</h2>
 
 <input id="completedMemoSearch" placeholder="Tamamlanan müzekkerelerde ara..." oninput="renderCompletedMemos()">
+<button class="secondary" onclick="toggleListSort('completedMemos')" style="margin-top:8px">
+↕ Tarihe göre: <span id="completedMemosSortLabel">Azalan</span>
+</button>
 
 <p class="small">
 Cevabı geldi olarak işaretlenen müzekkereler burada arşivlenir.
@@ -559,6 +574,9 @@ Cevabı geldi olarak işaretlenen müzekkereler burada arşivlenir.
 <h2>KYOK Arşivi</h2>
 
 <input id="kyokSearch" placeholder="KYOK dosyalarında ara..." oninput="renderStatusArchives()">
+<button class="secondary" onclick="toggleListSort('kyok')" style="margin-top:8px">
+↕ Tarihe göre: <span id="kyokSortLabel">Azalan</span>
+</button>
 <table><thead><tr><th>Dosya No</th><th>Birim</th><th>Suç</th><th>Durum</th></tr></thead>
 <tbody id="kyokArchiveTable"></tbody></table>
 </section>
@@ -567,6 +585,9 @@ Cevabı geldi olarak işaretlenen müzekkereler burada arşivlenir.
 <h2>İddianame Arşivi</h2>
 
 <input id="iddianameSearch" placeholder="İddianame dosyalarında ara..." oninput="renderStatusArchives()">
+<button class="secondary" onclick="toggleListSort('iddianame')" style="margin-top:8px">
+↕ Tarihe göre: <span id="iddianameSortLabel">Azalan</span>
+</button>
 <table><thead><tr><th>Dosya No</th><th>Birim</th><th>Suç</th><th>Durum</th></tr></thead>
 <tbody id="iddianameArchiveTable"></tbody></table>
 </section>
@@ -588,6 +609,37 @@ let files=[];
 let notifications=[];
 let memos=[];
 let memoSaving = false;
+let listSortAsc = {
+    files:true,
+    notifications:true,
+    finalizedNotifications:false,
+    memos:true,
+    completedMemos:false,
+    kyok:false,
+    iddianame:false
+};
+
+function toggleListSort(key){
+    listSortAsc[key] = !listSortAsc[key];
+    const label=document.getElementById(key+"SortLabel");
+    if(label) label.textContent=listSortAsc[key] ? "Artan" : "Azalan";
+    if(key==="files") renderFiles();
+    else if(key==="notifications") renderNotifications();
+    else if(key==="finalizedNotifications") renderFinalizedNotifications();
+    else if(key==="memos") renderMemos();
+    else if(key==="completedMemos") renderCompletedMemos();
+    else if(key==="kyok" || key==="iddianame") renderStatusArchives();
+}
+
+function compareDates(a,b,getDate,key){
+    const da=getDate(a), db=getDate(b);
+    if(!da && !db) return 0;
+    if(!da) return 1;
+    if(!db) return -1;
+    const c=String(da).localeCompare(String(db));
+    return listSortAsc[key] ? c : -c;
+}
+
 
 function getMemoLocalState(){
     try{
@@ -881,7 +933,9 @@ function renderFiles(){
             (f.birim||"").toLowerCase().includes(q) ||
             (f.suc_turu||"").toLowerCase().includes(q)
         )
-    );
+    ).sort((a,b)=>compareDates(a,b,
+        f=>f.karar_tarihi || f.acilis_tarihi || f.created_at,
+        "files"));
 
     document.getElementById("fileTable").innerHTML=
     list.map(f=>`
@@ -1089,6 +1143,29 @@ async function addNotification(){
 
 /* Tebligatın kesinleştirilebileceği tarihi güvenli biçimde hesapla.
    Öncelik: kayıtlı kesinleştirme tarihi; yoksa süre sonu + mevcut hesap. */
+
+let notificationSortAsc = true;
+
+function sortNotificationsByRemaining(a,b){
+    const da = notificationKesinlestirmeTarihi(a);
+    const db = notificationKesinlestirmeTarihi(b);
+
+    /* Tarihi olmayan kayıtlar en alta */
+    if(!da && !db) return 0;
+    if(!da) return 1;
+    if(!db) return -1;
+
+    const cmp = da.localeCompare(db);
+    return notificationSortAsc ? cmp : -cmp;
+}
+
+function toggleNotificationSort(){
+    toggleListSort("notifications");
+    const label = document.getElementById("notificationSortLabel");
+    if(label) label.textContent = listSortAsc.notifications ? "Artan" : "Azalan";
+}
+
+
 function notificationKesinlestirmeTarihi(n){
     if(n.kesinlestirme_tarihi) return n.kesinlestirme_tarihi;
 
@@ -1112,7 +1189,9 @@ function notificationCanBeFinalized(n){
 function renderNotifications(){
 
     const activeNotifications =
-        notifications.filter(n => n.durum !== "kesinlesti");
+        notifications
+        .filter(n => n.durum !== "kesinlesti")
+        .sort((a,b)=>compareDates(a,b,notificationKesinlestirmeTarihi,"notifications"));
 
     const q = (document.getElementById("notificationSearch")?.value || "").toLowerCase();
 
@@ -1186,10 +1265,7 @@ function renderFinalizedNotifications(){
     const finalized =
         notifications
         .filter(n => n.durum === "kesinlesti")
-        .sort((a,b) =>
-            String(b.kesinlestirme_tarihi || "")
-            .localeCompare(String(a.kesinlestirme_tarihi || ""))
-        );
+        .sort((a,b)=>compareDates(a,b,n=>n.kesinlestirme_tarihi,"finalizedNotifications"));
 
     const q = (document.getElementById("finalizedNotificationSearch")?.value || "").toLowerCase();
     const filtered = finalized.filter(n => {
@@ -1361,7 +1437,10 @@ function renderMemos(){
 
     const activeMemos = memos
         .map(getMemoState)
-        .filter(m => !m.cevap_geldi);
+        .filter(m => !m.cevap_geldi)
+        .sort((a,b)=>compareDates(a,b,
+            m=>m.sure_son_gunu || addDays(m.gonderim_tarihi,15),
+            "memos"));
 
     const q = (document.getElementById("memoSearch")?.value || "").toLowerCase();
     const filteredMemos = activeMemos.filter(m => {
@@ -1444,11 +1523,7 @@ function renderCompletedMemos(){
     const completed =
         memos
         .filter(m => m.cevap_geldi)
-        .sort((a,b) =>
-            String(b.cevap_tarihi || "").localeCompare(
-                String(a.cevap_tarihi || "")
-            )
-        );
+        .sort((a,b)=>compareDates(a,b,m=>m.cevap_tarihi || m.gonderim_tarihi,"completedMemos"));
 
     const table = document.getElementById("completedMemoTable");
     if(!table) return;
@@ -1675,8 +1750,12 @@ function renderStatusArchives(){
         (f.birim||"").toLowerCase().includes(q) ||
         (f.suc_turu||"").toLowerCase().includes(q);
 
-    const kyok = files.filter(f => f.karar_turu === "kyok" && matches(f,kyokQ));
-    const idd = files.filter(f => f.karar_turu === "iddianame" && matches(f,iddQ));
+    const kyok = files
+        .filter(f => f.karar_turu === "kyok" && matches(f,kyokQ))
+        .sort((a,b)=>compareDates(a,b,f=>f.karar_tarihi || f.created_at,"kyok"));
+    const idd = files
+        .filter(f => f.karar_turu === "iddianame" && matches(f,iddQ))
+        .sort((a,b)=>compareDates(a,b,f=>f.karar_tarihi || f.created_at,"iddianame"));
 
     const k = document.getElementById("kyokArchiveTable");
     const i = document.getElementById("iddianameArchiveTable");
