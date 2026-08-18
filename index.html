@@ -101,6 +101,13 @@ label{font-size:13px;font-weight:bold}
     margin-bottom:18px
 }
 .tab.active{background:#1769aa;color:white}
+
+.dosya-durumlari{display:flex;gap:6px;flex-wrap:wrap}
+.durum-btn{padding:7px 10px;border-radius:7px;font-size:12px}
+.durum-btn.active{background:#1769aa;color:#fff}
+.durum-btn.kyok{background:#fde2df;color:#a93226}
+.durum-btn.iddianame{background:#fff0d5;color:#9a6500}
+.durum-btn.derdest{background:#dff5e5;color:#18733a}
 .badge{
     display:inline-block;
     padding:5px 8px;
@@ -259,7 +266,7 @@ Tamamlanan Müzekkereler
 
 <div style="display:flex;justify-content:space-between;align-items:center">
 
-<h2>Derdest Dosyalar</h2>
+<h2>Dosya Takibi</h2>
 
 <button class="primary" onclick="toggle('fileForm')">
 + Dosya Ekle
@@ -273,6 +280,14 @@ placeholder="Dosya no, birim veya suç ara..."
 oninput="renderFiles()"
 >
 
+<div class="tabs" style="margin-top:10px">
+<button class="tab active" id="fileFilterDerdest" onclick="setFileFilter('derdest',this)">Derdest</button>
+<button class="tab" id="fileFilterIddianame" onclick="setFileFilter('iddianame',this)">İddianame</button>
+<button class="tab" id="fileFilterKyok" onclick="setFileFilter('kyok',this)">KYOK</button>
+<button class="tab" id="fileFilterAll" onclick="setFileFilter('all',this)">Tümü</button>
+</div>
+
+<div id="fileStatusSummary" class="small" style="margin-bottom:12px"></div>
 
 <div id="fileForm" class="card hidden">
 
@@ -301,8 +316,17 @@ oninput="renderFiles()"
 </div>
 
 <div>
+<label>Dosya Durumu</label>
+<select id="dosyaDurumu">
+<option value="derdest">Derdest</option>
+<option value="iddianame">İddianame verildi</option>
+<option value="kyok">KYOK verildi</option>
+</select>
+</div>
+
+<div>
 <label>Karar Türü</label>
-<input id="kararTuru">
+<input id="kararTuru" placeholder="Varsa karar türü">
 </div>
 
 <div>
@@ -336,6 +360,7 @@ Vazgeç
 <th>Birim</th>
 <th>Suç</th>
 <th>Karar</th>
+<th>Dosya Durumu</th>
 <th>İşlem</th>
 </tr>
 </thead>
@@ -787,7 +812,7 @@ async function addFile(){
         notlar:
         document.getElementById("notlar").value,
 
-        durum:"derdest"
+        durum:document.getElementById("dosyaDurumu").value || "derdest"
 
     });
 
@@ -804,14 +829,56 @@ async function addFile(){
 
 /* DOSYALAR */
 
+let fileFilter = "derdest";
+
+function setFileFilter(filter, button){
+    fileFilter = filter;
+    document.querySelectorAll("#files .tabs .tab").forEach(x=>x.classList.remove("active"));
+    if(button) button.classList.add("active");
+    renderFiles();
+}
+
+async function updateFileStatus(id, status){
+    const labels = {
+        derdest:"Derdest",
+        iddianame:"İddianame verildi",
+        kyok:"KYOK verildi"
+    };
+
+    if(!labels[status]) return;
+
+    const f = files.find(x=>x.id===id);
+    if(!f) return;
+
+    if(!confirm(`Dosya durumu "${labels[status]}" olarak değiştirilsin mi?`)) return;
+
+    const {error} = await supabaseClient
+        .from("dosyalar")
+        .update({
+            durum:status,
+            son_islem_tarihi:today()
+        })
+        .eq("id",id)
+        .eq("owner_id",user.id);
+
+    if(error){
+        alert("Dosya durumu değiştirilemedi: " + error.message);
+        return;
+    }
+
+    await load();
+}
+
 function renderFiles(){
 
-    const q=
+    const q =
     (document.getElementById("search")?.value||"")
     .toLowerCase();
 
-    const list=files.filter(f=>
-        f.durum==="derdest" &&
+    const allActive = files.filter(f => ["derdest","iddianame","kyok"].includes(f.durum));
+
+    const list = allActive.filter(f =>
+        (fileFilter === "all" || f.durum === fileFilter) &&
         (
             (f.dosya_no||"").toLowerCase().includes(q) ||
             (f.birim||"").toLowerCase().includes(q) ||
@@ -819,14 +886,23 @@ function renderFiles(){
         )
     );
 
-    document.getElementById("fileTable").innerHTML=
+    const counts = {
+        derdest: allActive.filter(f=>f.durum==="derdest").length,
+        iddianame: allActive.filter(f=>f.durum==="iddianame").length,
+        kyok: allActive.filter(f=>f.durum==="kyok").length
+    };
+
+    const summary = document.getElementById("fileStatusSummary");
+    if(summary){
+        summary.textContent = `Derdest: ${counts.derdest}  •  İddianame: ${counts.iddianame}  •  KYOK: ${counts.kyok}`;
+    }
+
+    document.getElementById("fileTable").innerHTML =
     list.map(f=>`
 
     <tr>
 
-    <td>
-    <strong>${escapeHtml(f.dosya_no)}</strong>
-    </td>
+    <td><strong>${escapeHtml(f.dosya_no)}</strong></td>
 
     <td>${escapeHtml(f.birim||"-")}</td>
 
@@ -835,19 +911,19 @@ function renderFiles(){
     <td>
     ${escapeHtml(f.karar_turu||"-")}
     <br>
-    <span class="small">
-    ${formatDate(f.karar_tarihi)}
-    </span>
+    <span class="small">${formatDate(f.karar_tarihi)}</span>
     </td>
 
     <td>
+    <div class="dosya-durumlari">
+        <button class="durum-btn derdest ${f.durum==='derdest'?'active':''}" onclick="updateFileStatus('${f.id}','derdest')">Derdest</button>
+        <button class="durum-btn iddianame ${f.durum==='iddianame'?'active':''}" onclick="updateFileStatus('${f.id}','iddianame')">İddianame</button>
+        <button class="durum-btn kyok ${f.durum==='kyok'?'active':''}" onclick="updateFileStatus('${f.id}','kyok')">KYOK</button>
+    </div>
+    </td>
 
-    <button
-    class="secondary"
-    onclick="archiveFile('${f.id}')">
-    Arşivle
-    </button>
-
+    <td>
+    <button class="secondary" onclick="archiveFile('${f.id}')">Arşivle</button>
     </td>
 
     </tr>
