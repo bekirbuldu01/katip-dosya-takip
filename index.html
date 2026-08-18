@@ -249,6 +249,7 @@ Müzekkereler
 
 <button class="tab" onclick="section('kyokArchive',this)">KYOK Arşivi</button>
 <button class="tab" onclick="section('iddianameArchive',this)">İddianame Arşivi</button>
+<button class="tab" onclick="section('resultsArchive',this)">Sonuçlanan</button>
 <button class="tab" onclick="section('statistics',this)">Aylık İstatistik</button>
 
 
@@ -571,7 +572,7 @@ Cevabı geldi olarak işaretlenen müzekkereler burada arşivlenir.
 
 
 <section id="kyokArchive" class="card hidden">
-<h2>KYOK Arşivi</h2>
+<h2>KYOK Arşivi — Sonuçlanan</h2>
 
 <input id="kyokSearch" placeholder="KYOK dosyalarında ara..." oninput="renderStatusArchives()">
 <button class="secondary" onclick="toggleListSort('kyok')" style="margin-top:8px">
@@ -582,7 +583,7 @@ Cevabı geldi olarak işaretlenen müzekkereler burada arşivlenir.
 </section>
 
 <section id="iddianameArchive" class="card hidden">
-<h2>İddianame Arşivi</h2>
+<h2>İddianame Arşivi — Sonuçlanan</h2>
 
 <input id="iddianameSearch" placeholder="İddianame dosyalarında ara..." oninput="renderStatusArchives()">
 <button class="secondary" onclick="toggleListSort('iddianame')" style="margin-top:8px">
@@ -590,6 +591,46 @@ Cevabı geldi olarak işaretlenen müzekkereler burada arşivlenir.
 </button>
 <table><thead><tr><th>Dosya No</th><th>Birim</th><th>Suç</th><th>Durum</th></tr></thead>
 <tbody id="iddianameArchiveTable"></tbody></table>
+</section>
+
+<section id="resultsArchive" class="card hidden">
+<h2>Sonuçlanan Dosyalar</h2>
+
+<div class="stats" style="margin:12px 0 20px">
+    <div class="stat">
+        Toplam Sonuçlanan
+        <strong id="resultTotal">0</strong>
+    </div>
+    <div class="stat">
+        KYOK
+        <strong id="resultKyok">0</strong>
+    </div>
+    <div class="stat">
+        İddianame
+        <strong id="resultIddianame">0</strong>
+    </div>
+</div>
+
+<input id="resultsSearch" placeholder="Dosya no, birim, suç veya karar türüne göre ara..." oninput="renderResultsArchive()">
+<button class="secondary" onclick="toggleListSort('resultsArchive')" style="margin-top:8px">
+↕ Karar tarihine göre: <span id="resultsArchiveSortLabel">Azalan</span>
+</button>
+
+<div style="overflow:auto;margin-top:12px">
+<table>
+<thead>
+<tr>
+<th>Dosya No</th>
+<th>Birim</th>
+<th>Suç</th>
+<th>Karar</th>
+<th>Karar Tarihi</th>
+<th>Son İşlem</th>
+</tr>
+</thead>
+<tbody id="resultsArchiveTable"></tbody>
+</table>
+</div>
 </section>
 
 <section id="statistics" class="card hidden">
@@ -616,7 +657,8 @@ let listSortAsc = {
     memos:true,
     completedMemos:false,
     kyok:false,
-    iddianame:false
+    iddianame:false,
+    resultsArchive:false
 };
 
 function toggleListSort(key){
@@ -629,6 +671,7 @@ function toggleListSort(key){
     else if(key==="memos") renderMemos();
     else if(key==="completedMemos") renderCompletedMemos();
     else if(key==="kyok" || key==="iddianame") renderStatusArchives();
+    else if(key==="resultsArchive") renderResultsArchive();
 }
 
 function compareDates(a,b,getDate,key){
@@ -771,7 +814,7 @@ async function logout(){
 
 function section(id,button){
 
-    ["home","files","notifications","finalizedNotifications","memos","completedMemos","kyokArchive","iddianameArchive","statistics"]
+    ["home","files","notifications","finalizedNotifications","memos","completedMemos","kyokArchive","iddianameArchive","resultsArchive","statistics"]
     .forEach(x=>{
         document.getElementById(x).classList.add("hidden");
     });
@@ -1662,6 +1705,9 @@ function renderDashboard(){
     const derdest=
     files.filter(x=>x.durum==="derdest").length;
 
+    const sonucLandirilan=
+    files.filter(x=>x.durum==="arsiv").length;
+
     const iddianameCount =
     files.filter(x => x.karar_turu === "iddianame").length;
 
@@ -1694,6 +1740,8 @@ function renderDashboard(){
 
 
     document.getElementById("derdest").textContent=derdest;
+    const arsivEl = document.getElementById("arsiv");
+    if (arsivEl) arsivEl.textContent = sonucLandirilan;
     const iddEl = document.getElementById("iddianameCount");
     const kyokEl = document.getElementById("kyokCount");
     if (iddEl) iddEl.textContent = iddianameCount;
@@ -1751,10 +1799,10 @@ function renderStatusArchives(){
         (f.suc_turu||"").toLowerCase().includes(q);
 
     const kyok = files
-        .filter(f => f.karar_turu === "kyok" && matches(f,kyokQ))
+        .filter(f => f.durum==="arsiv" && f.karar_turu === "kyok" && matches(f,kyokQ))
         .sort((a,b)=>compareDates(a,b,f=>f.karar_tarihi || f.created_at,"kyok"));
     const idd = files
-        .filter(f => f.karar_turu === "iddianame" && matches(f,iddQ))
+        .filter(f => f.durum==="arsiv" && f.karar_turu === "iddianame" && matches(f,iddQ))
         .sort((a,b)=>compareDates(a,b,f=>f.karar_tarihi || f.created_at,"iddianame"));
 
     const k = document.getElementById("kyokArchiveTable");
@@ -1773,6 +1821,63 @@ function renderStatusArchives(){
         <td>${escapeHtml(f.suc_turu||"-")}</td>
         <td><span class="badge green">İDDİANAME</span></td></tr>
     `).join("") : `<tr><td colspan="4">İddianame kaydı yok.</td></tr>`;
+}
+
+function renderResultsArchive(){
+    const q=(document.getElementById("resultsSearch")?.value||"").toLowerCase();
+
+    const matches=(f)=>{
+        const text=[
+            f.dosya_no,f.birim,f.suc_turu,f.karar_turu
+        ].map(x=>String(x||"").toLowerCase()).join(" ");
+        return !q || text.includes(q);
+    };
+
+    const results=files
+        .filter(f=>f.durum==="arsiv")
+        .filter(matches)
+        .sort((a,b)=>compareDates(
+            a,b,
+            f=>f.karar_tarihi || f.son_islem_tarihi || f.created_at,
+            "resultsArchive"
+        ));
+
+    const total=files.filter(f=>f.durum==="arsiv").length;
+    const kyok=files.filter(f=>f.durum==="arsiv" && f.karar_turu==="kyok").length;
+    const idd=files.filter(f=>f.durum==="arsiv" && f.karar_turu==="iddianame").length;
+
+    const set=(id,val)=>{
+        const el=document.getElementById(id);
+        if(el) el.textContent=val;
+    };
+    set("resultTotal",total);
+    set("resultKyok",kyok);
+    set("resultIddianame",idd);
+
+    const table=document.getElementById("resultsArchiveTable");
+    if(!table) return;
+
+    table.innerHTML=results.length ? results.map(f=>`
+        <tr>
+            <td><strong>${escapeHtml(f.dosya_no||"-")}</strong></td>
+            <td>${escapeHtml(f.birim||"-")}</td>
+            <td>${escapeHtml(f.suc_turu||"-")}</td>
+            <td>
+                <span class="badge ${
+                    f.karar_turu==="kyok" ? "red" :
+                    f.karar_turu==="iddianame" ? "green" : "gray"
+                }">
+                    ${
+                        f.karar_turu==="kyok" ? "KYOK" :
+                        f.karar_turu==="iddianame" ? "İDDİANAME" :
+                        escapeHtml(f.karar_turu||"SONUÇLANDI")
+                    }
+                </span>
+            </td>
+            <td>${formatDate(f.karar_tarihi)}</td>
+            <td>${formatDate(f.son_islem_tarihi)}</td>
+        </tr>
+    `).join("") : `<tr><td colspan="6">Henüz sonuçlandırılmış dosya yok.</td></tr>`;
 }
 
 function renderMonthlyStats(){
@@ -1877,6 +1982,7 @@ function renderAll(){
     fillSelects();
     renderFiles();
     renderStatusArchives();
+    renderResultsArchive();
     renderNotifications();
     renderFinalizedNotifications();
     renderMemos();
