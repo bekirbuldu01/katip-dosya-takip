@@ -526,6 +526,32 @@ let notifications=[];
 let memos=[];
 let memoSaving = false;
 
+function getMemoLocalState(){
+    try{
+        return JSON.parse(localStorage.getItem("memoWorkflow") || "{}");
+    }catch(e){
+        return {};
+    }
+}
+
+function setMemoLocalState(id, patch){
+    const all = getMemoLocalState();
+    all[id] = Object.assign({}, all[id] || {}, patch);
+    localStorage.setItem("memoWorkflow", JSON.stringify(all));
+}
+
+function clearMemoLocalState(id){
+    const all = getMemoLocalState();
+    delete all[id];
+    localStorage.setItem("memoWorkflow", JSON.stringify(all));
+}
+
+function getMemoState(m){
+    const local = getMemoLocalState()[m.id] || {};
+    return Object.assign({}, m, local);
+}
+
+
 
 function today(){
     return new Date().toISOString().slice(0,10);
@@ -661,6 +687,7 @@ async function load(){
     files=f.data||[];
     console.log("DOSYALAR:", files);
 
+    // tebligat_takip yalnızca görüntüleme için kullanılan VIEW'dir.
     const t=await supabaseClient
     .from("tebligat_takip")
     .select("*");
@@ -909,19 +936,24 @@ async function addNotification(){
         return;
     }
 
-    const sonGun = addDays(tarih, 14);
+    // tebligat_takip bir VIEW; VIEW'e INSERT yapılamaz.
+    // Kaydı gerçek tablo olan tebligatlar'a yazıyoruz.
+    const hesaplananSonGun = addDays(tarih, 14);
 
     const {error}=await supabaseClient
-        .from("tebligat_takip")
+        .from("tebligatlar")
         .insert({
             owner_id:user.id,
             dosya_id:dosya,
             teblig_tarihi:tarih,
-            sure_son_gunu:sonGun
+            sure_gun:14,
+            hesaplanan_son_gun:hesaplananSonGun,
+            uzatilmis_son_gun:hesaplananSonGun,
+            durum:"bekliyor"
         });
 
     if(error){
-        alert(error.message);
+        alert("Tebligat kaydedilemedi: " + error.message);
         return;
     }
 
@@ -933,54 +965,54 @@ async function addNotification(){
 function renderNotifications(){
 
     document.getElementById("notificationTable").innerHTML=
-    notifications.map(n=>`
+    notifications.map(n=>{
 
-    <tr>
+        const sonGun =
+            n.sure_son_gunu || addDays(n.teblig_tarihi, 14);
 
-    <td>${escapeHtml(files.find(f => f.id === n.dosya_id)?.dosya_no || "-")}</td>
+        return `
+        <tr>
 
-    <td>${formatDate(n.teblig_tarihi)}</td>
+        <td>${escapeHtml(files.find(f => f.id === n.dosya_id)?.dosya_no || "-")}</td>
 
-    <td>${formatDate(n.sure_son_gunu)}</td>
+        <td>${formatDate(n.teblig_tarihi)}</td>
 
-    <td>${formatDate(n.kesinlestirme_tarihi)}</td>
+        <td>${formatDate(sonGun)}</td>
 
-    <td>
+        <td>${formatDate(n.kesinlestirme_tarihi)}</td>
 
-    ${
-        n.durum==="kesinlesti"
-        ?
-        '<span class="badge green">KESİNLEŞTİ</span>'
-        :
-        n.kesinlestirme_tarihi &&
-        today()>=n.kesinlestirme_tarihi
-        ?
-        '<span class="badge red">KESİNLEŞTİRİLEBİLİR</span>'
-        :
-        '<span class="badge gray">BEKLİYOR</span>'
-    }
+        <td>
+        ${
+            n.durum==="kesinlesti"
+            ?
+            '<span class="badge green">KESİNLEŞTİ</span>'
+            :
+            n.kesinlestirme_tarihi &&
+            today()>=n.kesinlestirme_tarihi
+            ?
+            '<span class="badge red">KESİNLEŞTİRİLEBİLİR</span>'
+            :
+            '<span class="badge gray">BEKLİYOR</span>'
+        }
+        </td>
 
-    </td>
+        <td>
+        ${
+            n.durum!=="kesinlesti"
+            ?
+            `<button
+            class="primary"
+            onclick="finalizeNotification('${n.id}')">
+            Kesinleştir
+            </button>`
+            :
+            ""
+        }
+        </td>
 
-    <td>
-
-    ${
-        n.durum!=="kesinlesti"
-        ?
-        `<button
-        class="primary"
-        onclick="finalizeNotification('${n.id}')">
-        Kesinleştir
-        </button>`
-        :
-        ""
-    }
-
-    </td>
-
-    </tr>
-
-    `).join("");
+        </tr>
+        `;
+    }).join("");
 }
 
 
@@ -989,14 +1021,19 @@ async function finalizeNotification(id){
     if(!confirm("Karar kesinleştirildi olarak işaretlensin mi?"))
     return;
 
-    await supabaseClient
-    .from("tebligat_takip")
-    .update({
-        durum:"kesinlesti",
-        kesinlestirme_tarihi:today()
-    })
-    .eq("id",id)
-    .eq("owner_id",user.id);
+    const {error}=await supabaseClient
+        .from("tebligatlar")
+        .update({
+            durum:"kesinlesti",
+            kesinlestirme_tarihi:today()
+        })
+        .eq("id",id)
+        .eq("owner_id",user.id);
+
+    if(error){
+        alert("Tebligat güncellenemedi: " + error.message);
+        return;
+    }
 
     await load();
 }
@@ -1023,25 +1060,55 @@ async function addMemo(){
 
     memoSaving = true;
 
-    const {error}=await supabaseClient
+    // İlk kayıt yalnızca mevcut temel kolonları kullanır.
+    const {data, error}=await supabaseClient
         .from("muzekkereler")
         .insert({
             owner_id:user.id,
             dosya_id:dosya,
-            gonderim_tarihi:tarih,
-            sure_son_gunu:sonGun,
-            akibet_tarihi:sonGun,
-            akibet_soruldu:false,
-            akibet_sorulma_tarihi:null,
-            tekit_edildi:false,
-            tekit_tarihi:null
-        });
+            gonderim_tarihi:tarih
+        })
+        .select()
+        .single();
 
     memoSaving = false;
 
     if(error){
-        alert(error.message);
+        alert("Müzekkere kaydedilemedi: " + error.message);
         return;
+    }
+
+    // Yeni takip kolonları Supabase'de varsa kalıcı olarak kaydet.
+    // Yoksa localStorage ile geçici olarak takip etmeye devam et.
+    const id = data?.id;
+
+    if(id){
+        const extra = await supabaseClient
+            .from("muzekkereler")
+            .update({
+                sure_son_gunu:sonGun,
+                akibet_tarihi:sonGun,
+                akibet_soruldu:false,
+                akibet_sorulma_tarihi:null,
+                tekit_edildi:false,
+                tekit_tarihi:null
+            })
+            .eq("id",id)
+            .eq("owner_id",user.id);
+
+        if(extra.error){
+            setMemoLocalState(id, {
+                sure_son_gunu:sonGun,
+                akibet_tarihi:sonGun,
+                akibet_soruldu:false,
+                akibet_sorulma_tarihi:null,
+                tekit_edildi:false,
+                tekit_tarihi:null
+            });
+            console.warn("Müzekkere takip kolonları henüz Supabase'de yok; yerel takip kullanılıyor:", extra.error.message);
+        }else{
+            clearMemoLocalState(id);
+        }
     }
 
     alert("Müzekkere takibe alındı.");
@@ -1051,7 +1118,9 @@ async function addMemo(){
 
 function renderMemos(){
 
-    const activeMemos = memos.filter(m => !m.cevap_geldi);
+    const activeMemos = memos
+        .map(getMemoState)
+        .filter(m => !m.cevap_geldi);
 
     document.getElementById("memoTable").innerHTML =
     activeMemos.map(m=>{
@@ -1073,7 +1142,8 @@ function renderMemos(){
 
         if(m.tekit_edildi){
             durumHtml = '<span class="badge green">TEKİT EDİLDİ</span>';
-            islemHtml = '<span class="small">Tekit: ' +
+            islemHtml =
+                '<span class="small">Tekit: ' +
                 formatDate(m.tekit_tarihi) + '</span>';
         }
         else if(m.akibet_soruldu){
@@ -1117,8 +1187,6 @@ function renderMemos(){
         </tr>
         `;
     }).join("");
-
-    renderCompletedMemos();
 }
 
 
@@ -1166,60 +1234,64 @@ async function memoAskOutcome(id){
     if(!confirm("Akıbet soruldu olarak işaretlensin mi?"))
         return;
 
+    const state = {
+        akibet_soruldu:true,
+        akibet_sorulma_tarihi:today(),
+        tekit_edildi:false,
+        tekit_tarihi:null,
+        tekit_son_gunu:addDays(today(),15)
+    };
+
     const {error}=await supabaseClient
         .from("muzekkereler")
-        .update({
-            akibet_soruldu:true,
-            akibet_sorulma_tarihi:today(),
-            tekit_edildi:false,
-            tekit_tarihi:null,
-            tekit_son_gunu:addDays(today(),15)
-        })
+        .update(state)
         .eq("id",id)
         .eq("owner_id",user.id);
 
     if(error){
-        alert(error.message);
-        return;
+        setMemoLocalState(id, state);
+        console.warn("Akıbet alanları Supabase'de yok; yerel takip kullanılıyor:", error.message);
+    }else{
+        clearMemoLocalState(id);
     }
 
+    alert("Akıbet soruldu olarak işaretlendi.");
     await load();
 }
 
 
 async function memoTekit(id){
 
-    const memo = memos.find(x => x.id === id);
-
-    if(!memo){
-        alert("Müzekkere bulunamadı.");
-        return;
-    }
+    const memo = getMemoState(memos.find(x => x.id === id) || {id});
 
     const tekitGeldi =
-        memo.tekit_son_gunu &&
-        today() >= memo.tekit_son_gunu;
+        (memo.tekit_son_gunu || addDays(memo.akibet_sorulma_tarihi,15)) &&
+        today() >= (memo.tekit_son_gunu || addDays(memo.akibet_sorulma_tarihi,15));
 
     if(!tekitGeldi){
-        alert("Tekit için 15 günlük sürenin dolması bekleniyor.");
+        alert("Tekit için akıbet sorulmasından sonra 15 günlük sürenin dolması bekleniyor.");
         return;
     }
 
     if(!confirm("Tekit edildi olarak işaretlensin mi?"))
         return;
 
+    const state = {
+        tekit_edildi:true,
+        tekit_tarihi:today()
+    };
+
     const {error}=await supabaseClient
         .from("muzekkereler")
-        .update({
-            tekit_edildi:true,
-            tekit_tarihi:today()
-        })
+        .update(state)
         .eq("id",id)
         .eq("owner_id",user.id);
 
     if(error){
-        alert(error.message);
-        return;
+        setMemoLocalState(id, state);
+        console.warn("Tekit alanları Supabase'de yok; yerel takip kullanılıyor:", error.message);
+    }else{
+        clearMemoLocalState(id);
     }
 
     await load();
@@ -1245,6 +1317,7 @@ async function memoAnswered(id){
         return;
     }
 
+    clearMemoLocalState(id);
     alert("Müzekkere tamamlandı ve arşive alındı.");
     await load();
 }
@@ -1268,7 +1341,7 @@ function renderDashboard(){
     ).length;
 
     const akibet=
-    memos.filter(x=>{
+    memos.map(getMemoState).filter(x=>{
         if(x.cevap_geldi || x.tekit_edildi) return false;
 
         const sonGun = x.sure_son_gunu || addDays(x.gonderim_tarihi, 15);
