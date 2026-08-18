@@ -4,6 +4,7 @@
 
 
 
+
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -2614,30 +2615,82 @@ function getLastMemoForFile(fileId){
 function renderHomeDelayedReminder(){
     const el=document.getElementById("homeDelayedReminder");
     if(!el)return;
-    const delayed=files.filter(f=>f.durum==="derdest" && f.karar_turu!=="kamu_davasinin_ertelenmesi").map(f=>{
-        const memo=getLastMemoForFile(f.id);
-        const lastDate=memo?.gonderim_tarihi||null;
-        const days=lastDate?Math.max(0,daysBetween(lastDate,today())):null;
-        return {f,lastDate,days};
-    }).filter(x=>x.days!==null && x.days>60)
-      .sort((a,b)=>b.days-a.days);
 
-    if(!delayed.length){
-        el.innerHTML=`<div class="card success"><strong>✅ 60 günü aşan gecikmiş dosya yok.</strong></div>`;
+    /*
+      Ana sayfadaki 60+ gün uyarısı, Süre Kontrolü ile aynı kaynaktan
+      hesaplanır: yalnızca aktif (cevabı gelmemiş) müzekkereler.
+      Böylece cevaplanmış eski bir müzekkere dosyayı yanlışlıkla
+      "60 günü geçti" olarak göstermeye devam etmez.
+    */
+    const activeMemos = memos
+        .map(getMemoState)
+        .filter(m => m && m.gonderim_tarihi && !m.cevap_geldi);
+
+    const delayed = activeMemos
+        .map(m => {
+            const f = files.find(x => x.id === m.dosya_id);
+            if(!f || f.durum !== "derdest") return null;
+
+            const days = Math.max(0, daysBetween(m.gonderim_tarihi, today()));
+            return {
+                f,
+                memo: m,
+                lastDate: m.gonderim_tarihi,
+                days
+            };
+        })
+        .filter(x =>
+            x &&
+            x.days > 60
+        )
+        .sort((a,b) => b.days - a.days);
+
+    /*
+      Aynı dosyada birden fazla aktif müzekkere varsa ana sayfada
+      dosyayı bir kez göster; en fazla geciken aktif müzekkere esas alınır.
+    */
+    const uniqueByFile = [];
+    const seen = new Set();
+
+    delayed.forEach(x => {
+        if(seen.has(x.f.id)) return;
+        seen.add(x.f.id);
+        uniqueByFile.push(x);
+    });
+
+    if(!uniqueByFile.length){
+        el.innerHTML=`<div class="card success">
+            <strong>✅ 60 günü aşan gecikmiş dosya yok.</strong>
+        </div>`;
         return;
     }
 
     el.innerHTML=`<div class="card alert">
-        <h2 style="margin-top:0">🚨 Gecikmiş Dosyalar — 60 Günü Aşanlar (${delayed.length})</h2>
-        <p class="small">Son müzekkere işlem tarihinden itibaren 60 günden fazla işlem yapılmayan dosyalar.</p>
+        <h2 style="margin-top:0">🚨 Gecikmiş Dosyalar — 60 Günü Aşanlar (${uniqueByFile.length})</h2>
+        <p class="small">Cevabı gelmemiş aktif müzekkerenin gönderim tarihinden itibaren 60 günden fazla geçen dosyalar.</p>
         <div style="overflow:auto">
-        <table><thead><tr><th>Dosya No</th><th>Son İşlem</th><th>İşlemsizlik</th><th>Durum</th></tr></thead>
-        <tbody>${delayed.map(x=>`<tr>
-            <td><strong>${escapeHtml(x.f.dosya_no||"-")}</strong></td>
+        <table>
+          <thead>
+            <tr>
+              <th>Dosya No</th>
+              <th>Son Aktif Müzekkere</th>
+              <th>İşlemsizlik</th>
+              <th>Durum</th>
+            </tr>
+          </thead>
+          <tbody>${uniqueByFile.map(x=>`<tr>
+            <td>
+              <button type="button" class="secondary"
+                onclick="openFileDetail('${x.f.id}')"
+                style="font-weight:700">
+                ${escapeHtml(x.f.dosya_no||"-")}
+              </button>
+            </td>
             <td>${formatDate(x.lastDate)}</td>
             <td><span class="badge red">${x.days} gün</span></td>
-            <td><span class="badge red">60 GÜNÜ AŞTI</span></td>
-        </tr>`).join("")}</tbody></table>
+            <td><span class="badge red">🚨 60 GÜNÜ AŞTI</span></td>
+          </tr>`).join("")}</tbody>
+        </table>
         </div>
     </div>`;
 }
@@ -2754,7 +2807,7 @@ function renderAll(){
 
 })();
 
-setInterval(()=>{ if(user){ renderReminders(); renderDashboard(); } },60000);
+setInterval(()=>{ if(user){ renderReminders(); renderDashboard(); renderHomeDelayedReminder(); renderInactivity(); } },60000);
 
 </script>
 
