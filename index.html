@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -217,6 +218,10 @@ Müzekkereler
 Arşiv
 </button>
 
+<button class="tab" onclick="section('completedMemos',this)">
+Tamamlanan Müzekkereler
+</button>
+
 </div>
 
 
@@ -427,11 +432,43 @@ Müzekkere Ekle
 <th>Gönderim</th>
 <th>Son Gün</th>
 <th>Durum</th>
+<th>İşlem</th>
 <th></th>
 </tr>
 </thead>
 
 <tbody id="memoTable"></tbody>
+
+</table>
+
+</div>
+
+</section>
+
+
+<!-- TAMAMLANAN MÜZEKKERELER -->
+
+<section id="completedMemos" class="card hidden">
+
+<h2>Tamamlanan Müzekkereler</h2>
+
+<p class="small">
+Cevabı geldi olarak işaretlenen müzekkereler burada arşivlenir.
+</p>
+
+<div style="overflow:auto">
+
+<table>
+
+<thead>
+<tr>
+<th>Dosya</th>
+<th>Gönderim</th>
+<th>Cevap Tarihi</th>
+</tr>
+</thead>
+
+<tbody id="completedMemoTable"></tbody>
 
 </table>
 
@@ -478,6 +515,7 @@ let user=null;
 let files=[];
 let notifications=[];
 let memos=[];
+let memoSaving = false;
 
 
 function today(){
@@ -489,6 +527,15 @@ function formatDate(x){
     if(!x)return "-";
     const p=x.split("-");
     return p[2]+"."+p[1]+"."+p[0];
+}
+
+
+function addDays(dateStr, days){
+    if(!dateStr) return null;
+    const d = new Date(dateStr + "T00:00:00");
+    if(Number.isNaN(d.getTime())) return null;
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0,10);
 }
 
 
@@ -574,7 +621,7 @@ async function logout(){
 
 function section(id,button){
 
-    ["home","files","notifications","memos","archive"]
+    ["home","files","notifications","memos","completedMemos","archive"]
     .forEach(x=>{
         document.getElementById(x).classList.add("hidden");
     });
@@ -812,13 +859,11 @@ async function restoreFile(id){
 function fillSelects(){
     const tDosya = document.getElementById("tDosya");
     const mDosya = document.getElementById("mDosya");
-   
 
+    if(!tDosya || !mDosya) return;
 
-}
-
-    const eskiT = tDosya?.value || "";
-    const eskiM = mDosya?.value || "";
+    const eskiT = tDosya.value || "";
+    const eskiM = mDosya.value || "";
 
     const active = files.filter(x => x.durum === "derdest");
 
@@ -830,49 +875,41 @@ function fillSelects(){
 
     tDosya.innerHTML = html;
     mDosya.innerHTML = html;
-if (tDosya && !tDosya.value && tDosya.options.length > 1) {
-    tDosya.selectedIndex = 1;
-}
 
-if (mDosya && !mDosya.value && mDosya.options.length > 1) {
-    mDosya.selectedIndex = 1;
-}
+    if([...tDosya.options].some(o => o.value === eskiT)){
+        tDosya.value = eskiT;
+    }
 
-if ([...tDosya.options].some(o => o.value === eskiT)) {
-    tDosya.value = eskiT;
-}
-
-if ([...mDosya.options].some(o => o.value === eskiM)) {
-    mDosya.value = eskiM;
-}
+    if([...mDosya.options].some(o => o.value === eskiM)){
+        mDosya.value = eskiM;
+    }
 }
 
 /* TEBLİGAT */
 
 async function addNotification(){
 
-    const dosya=
-    document.getElementById("tDosya").value;
+    const dosya =
+        document.getElementById("tDosya").value;
 
-    const tarih=
-    document.getElementById("tarih").value;
+    const tarih =
+        document.getElementById("tarih").value;
 
-    if(!dosya||!tarih){
-        alert("Dosya ve tebliğ tarihi gerekli.");
+    if(!dosya || !tarih){
+        alert("Tebligat için dosya ve tebliğ tarihi seçmelisiniz.");
         return;
     }
 
+    const sonGun = addDays(tarih, 14);
+
     const {error}=await supabaseClient
-    .from("tebligat_takip")
-    .insert({
-
-        owner_id:user.id,
-
-        dosya_id:dosya,
-
-        teblig_tarihi:tarih
-
-    });
+        .from("tebligat_takip")
+        .insert({
+            owner_id:user.id,
+            dosya_id:dosya,
+            teblig_tarihi:tarih,
+            sure_son_gunu:sonGun
+        });
 
     if(error){
         alert(error.message);
@@ -880,7 +917,6 @@ async function addNotification(){
     }
 
     alert("Tebligat takibe alındı.");
-
     await load();
 }
 
@@ -892,7 +928,7 @@ function renderNotifications(){
 
     <tr>
 
-    <td>${escapeHtml(n.dosya_no||"-")}</td>
+    <td>${escapeHtml(files.find(f => f.id === n.dosya_id)?.dosya_no || "-")}</td>
 
     <td>${formatDate(n.teblig_tarihi)}</td>
 
@@ -961,28 +997,38 @@ async function finalizeNotification(id){
 
 async function addMemo(){
 
-    const dosya=
-    document.getElementById("tDosya").value;
+    if(memoSaving) return;
 
-    const tarih=
-    document.getElementById("mTarih").value;
+    const dosya =
+        document.getElementById("mDosya").value;
 
-    if(!dosya||!tarih){
-        alert("Dosya ve tarih gerekli.");
+    const tarih =
+        document.getElementById("mTarih").value;
+
+    if(!dosya || !tarih){
+        alert("Müzekkere için dosya ve gönderim tarihi seçmelisiniz.");
         return;
     }
 
+    const sonGun = addDays(tarih, 15);
+
+    memoSaving = true;
+
     const {error}=await supabaseClient
-    .from("muzekkereler")
-    .insert({
+        .from("muzekkereler")
+        .insert({
+            owner_id:user.id,
+            dosya_id:dosya,
+            gonderim_tarihi:tarih,
+            sure_son_gunu:sonGun,
+            akibet_tarihi:sonGun,
+            akibet_soruldu:false,
+            akibet_sorulma_tarihi:null,
+            tekit_edildi:false,
+            tekit_tarihi:null
+        });
 
-        owner_id:user.id,
-
-        dosya_id:dosya,
-
-        gonderim_tarihi:tarih
-
-    });
+    memoSaving = false;
 
     if(error){
         alert(error.message);
@@ -990,74 +1036,168 @@ async function addMemo(){
     }
 
     alert("Müzekkere takibe alındı.");
-
     await load();
 }
 
 
 function renderMemos(){
 
-    document.getElementById("memoTable").innerHTML=
-    memos.map(m=>`
+    const activeMemos = memos.filter(m => !m.cevap_geldi);
 
-    <tr>
+    document.getElementById("memoTable").innerHTML =
+    activeMemos.map(m=>{
 
-   ${escapeHtml(files.find(f => f.id === m.dosya_id)?.dosya_no || "-")}
+        const dosyaNo =
+            files.find(f => f.id === m.dosya_id)?.dosya_no || "-";
 
-    <td>${formatDate(m.gonderim_tarihi)}</td>
+        const sonGun =
+            m.sure_son_gunu || addDays(m.gonderim_tarihi, 15);
 
-    <td>${formatDate(m.sure_son_gunu)}</td>
+        const akibetTarihi =
+            m.akibet_tarihi || sonGun;
 
-    <td>
+        const tekitTarihi =
+            m.tekit_tarihi || addDays(m.akibet_sorulma_tarihi, 15);
 
-    ${
-        m.cevap_geldi
-        ?
-        '<span class="badge green">CEVAP GELDİ</span>'
-        :
-        m.akibet_tarihi &&
-        today()>=m.akibet_tarihi
-        ?
-        '<span class="badge red">AKIBET SORULMALI</span>'
-        :
-        '<span class="badge gray">BEKLİYOR</span>'
+        let durumHtml = '<span class="badge gray">BEKLİYOR</span>';
+        let islemHtml = "";
+
+        if(m.tekit_edildi){
+            durumHtml = '<span class="badge green">TEKİT EDİLDİ</span>';
+            islemHtml = '<span class="small">Tekit: ' +
+                formatDate(m.tekit_tarihi) + '</span>';
+        }
+        else if(m.akibet_soruldu){
+            const tekitGeldi =
+                tekitTarihi && today() >= tekitTarihi;
+
+            durumHtml =
+                '<span class="badge green">AKIBET SORULDU</span>' +
+                (tekitGeldi
+                    ? '<br><span class="badge red">TEKİT BEKLENİYOR</span>'
+                    : '');
+
+            islemHtml =
+                `<button class="primary"
+                    onclick="memoTekit('${m.id}')">
+                    ${tekitGeldi ? "Tekit Edildi" : "Tekit Et"}
+                </button>`;
+        }
+        else if(akibetTarihi && today() >= akibetTarihi){
+            durumHtml = '<span class="badge red">AKIBET SORULMALI</span>';
+            islemHtml =
+                `<button class="primary"
+                    onclick="memoAskOutcome('${m.id}')">
+                    Akıbet Soruldu
+                </button>`;
+        }
+
+        return `
+        <tr>
+            <td>${escapeHtml(dosyaNo)}</td>
+            <td>${formatDate(m.gonderim_tarihi)}</td>
+            <td>${formatDate(sonGun)}</td>
+            <td>${durumHtml}</td>
+            <td>${islemHtml}</td>
+            <td>
+                <button class="secondary"
+                    onclick="memoAnswered('${m.id}')">
+                    Cevap Geldi
+                </button>
+            </td>
+        </tr>
+        `;
+    }).join("");
+
+    renderCompletedMemos();
+}
+
+
+async function memoAskOutcome(id){
+
+    if(!confirm("Akıbet soruldu olarak işaretlensin mi?"))
+        return;
+
+    const {error}=await supabaseClient
+        .from("muzekkereler")
+        .update({
+            akibet_soruldu:true,
+            akibet_sorulma_tarihi:today(),
+            tekit_edildi:false,
+            tekit_tarihi:null,
+            tekit_son_gunu:addDays(today(),15)
+        })
+        .eq("id",id)
+        .eq("owner_id",user.id);
+
+    if(error){
+        alert(error.message);
+        return;
     }
 
-    </td>
+    await load();
+}
 
-    <td>
 
-    ${
-        !m.cevap_geldi
-        ?
-        `<button
-        class="primary"
-        onclick="memoAnswered('${m.id}')">
-        Cevap Geldi
-        </button>`
-        :
-        ""
+async function memoTekit(id){
+
+    const memo = memos.find(x => x.id === id);
+
+    if(!memo){
+        alert("Müzekkere bulunamadı.");
+        return;
     }
 
-    </td>
+    const tekitGeldi =
+        memo.tekit_son_gunu &&
+        today() >= memo.tekit_son_gunu;
 
-    </tr>
+    if(!tekitGeldi){
+        alert("Tekit için 15 günlük sürenin dolması bekleniyor.");
+        return;
+    }
 
-    `).join("");
+    if(!confirm("Tekit edildi olarak işaretlensin mi?"))
+        return;
+
+    const {error}=await supabaseClient
+        .from("muzekkereler")
+        .update({
+            tekit_edildi:true,
+            tekit_tarihi:today()
+        })
+        .eq("id",id)
+        .eq("owner_id",user.id);
+
+    if(error){
+        alert(error.message);
+        return;
+    }
+
+    await load();
 }
 
 
 async function memoAnswered(id){
 
-    await supabaseClient
-    .from("muzekkereler")
-    .update({
-        cevap_geldi:true,
-        cevap_tarihi:today()
-    })
-    .eq("id",id)
-    .eq("owner_id",user.id);
+    if(!confirm("Bu müzekkereye cevap geldi olarak işaretlensin ve Tamamlanan Müzekkereler arşivine alınsın mı?"))
+        return;
 
+    const {error}=await supabaseClient
+        .from("muzekkereler")
+        .update({
+            cevap_geldi:true,
+            cevap_tarihi:today()
+        })
+        .eq("id",id)
+        .eq("owner_id",user.id);
+
+    if(error){
+        alert(error.message);
+        return;
+    }
+
+    alert("Müzekkere tamamlandı ve arşive alındı.");
     await load();
 }
 
@@ -1080,11 +1220,21 @@ function renderDashboard(){
     ).length;
 
     const akibet=
-    memos.filter(x=>
-        !x.cevap_geldi &&
-        x.akibet_tarihi &&
-        today()>=x.akibet_tarihi
-    ).length;
+    memos.filter(x=>{
+        if(x.cevap_geldi || x.tekit_edildi) return false;
+
+        const sonGun = x.sure_son_gunu || addDays(x.gonderim_tarihi, 15);
+        const akibetTarihi = x.akibet_tarihi || sonGun;
+
+        if(x.akibet_soruldu){
+            const tekitSon =
+                x.tekit_son_gunu ||
+                addDays(x.akibet_sorulma_tarihi, 15);
+            return tekitSon && today() >= tekitSon;
+        }
+
+        return akibetTarihi && today() >= akibetTarihi;
+    }).length;
 
 
     document.getElementById("derdest").textContent=derdest;
@@ -1137,6 +1287,7 @@ function renderAll(){
     renderArchive();
     renderNotifications();
     renderMemos();
+    renderCompletedMemos();
     renderDashboard();
 
 }
