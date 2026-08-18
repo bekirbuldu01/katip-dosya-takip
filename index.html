@@ -810,21 +810,29 @@ async function restoreFile(id){
 /* DOSYA SEÇİMLERİ */
 
 function fillSelects(){
+    const tDosya = document.getElementById("tDosya");
+    const mDosya = document.getElementById("mDosya");
 
-    const active=files.filter(x=>x.durum==="derdest");
+    const eskiT = tDosya?.value || "";
+    const eskiM = mDosya?.value || "";
 
-    const html=
-    '<option value="">Dosya seç...</option>'+
-    active.map(x=>
-    `<option value="${x.id}">
-    ${escapeHtml(x.dosya_no)}
-    </option>`
-    ).join("");
+    const active = files.filter(x => x.durum === "derdest");
 
-    document.getElementById("tDosya").innerHTML=html;
-    document.getElementById("mDosya").innerHTML=html;
+    const html =
+        '<option value="">Dosya seç...</option>' +
+        active.map(x =>
+            `<option value="${x.id}">${escapeHtml(x.dosya_no)}</option>`
+        ).join("");
+
+    tDosya.innerHTML = html;
+    mDosya.innerHTML = html;
+
+    if ([...tDosya.options].some(o => o.value === eskiT))
+        tDosya.value = eskiT;
+
+    if ([...mDosya.options].some(o => o.value === eskiM))
+        mDosya.value = eskiM;
 }
-
 
 /* TEBLİGAT */
 
