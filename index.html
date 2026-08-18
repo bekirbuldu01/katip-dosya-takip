@@ -210,8 +210,13 @@ Sonuçlandırılan
 </div>
 
 <div class="stat">
-Kesinleştirilecek
-<strong id="kesin">0</strong>
+Hazırlık Bürosu — Kesinleştirilecek
+<strong id="kesinHazirlik">0</strong>
+</div>
+
+<div class="stat">
+Kamu Davasının Ertelenmesi — Kesinleştirilecek
+<strong id="kesinKamu">0</strong>
 </div>
 
 <div class="stat">
@@ -224,6 +229,12 @@ Akıbet Sorulacak
 <br>
 
 <div id="alerts"></div>
+
+<div id="overdueHomeReminder" class="card" style="margin-top:16px;border-left:5px solid #dc2626">
+    <h3 style="margin-top:0">⏰ Süresi Geçen Dosyalar</h3>
+    <div id="overdueHomeReminderBody" class="small">Kontrol ediliyor...</div>
+</div>
+
 
 
 <div class="tabs">
@@ -240,10 +251,6 @@ Derdest Dosyalar
 Tebligatlar
 </button>
 
-<button class="tab" onclick="section('finalizedNotifications',this)">
-Kesinleştirilen Tebligatlar
-</button>
-
 <button class="tab" onclick="section('memos',this)">
 Müzekkereler
 </button>
@@ -256,7 +263,9 @@ Müzekkereler
 <button class="tab" onclick="section('yetkisizlik',this)">Yetkisizlik</button>
 <button class="tab" onclick="section('fezleke',this)">Fezleke</button>
 <button class="tab" onclick="section('birlesme',this)">Birleştirme</button>
-
+<button class="tab" onclick="section('kamuErteleme',this)">Kamu Davasının Ertelenmesi</button>
+<button class="tab" onclick="section('taliKarar',this)">Tali Karar Fişleri <span id="taliBadge" class="badge red hidden">0</span></button>
+<button class="tab" onclick="section('completedTaliKarar',this)">Tamamlanan Tali Karar Fişleri</button>
 
 <button class="tab" onclick="section('completedMemos',this)">
 Tamamlanan Müzekkereler
@@ -403,6 +412,14 @@ Son gün hafta sonu veya resmi tatil ise ilk iş gününe uzatılır.
 </div>
 
 <div>
+<label>Tebligat Alanı</label>
+<select id="tTebligatTuru" onchange="renderNotifications()">
+<option value="genel">Hazırlık Bürosu</option>
+<option value="kamu_davasinin_ertelenmesi">Kamu Davasının Ertelenmesi</option>
+</select>
+</div>
+
+<div>
 <label>Tebliğ Tarihi</label>
 <input id="tarih" type="date">
 </div>
@@ -436,28 +453,9 @@ Tebligat Ekle
 
 </div>
 
-</section>
-
-
-<!-- KESİNLEŞTİRİLEN TEBLİGATLAR -->
-
-<section id="finalizedNotifications" class="card hidden">
-
-<h2>Kesinleştirilen Tebligatlar</h2>
-
-<input id="finalizedNotificationSearch" placeholder="Kesinleşen tebligatlarda ara..." oninput="renderFinalizedNotifications()">
-<button class="secondary" onclick="toggleListSort('finalizedNotifications')" style="margin-top:8px">
-↕ Tarihe göre: <span id="finalizedNotificationsSortLabel">Azalan</span>
-</button>
-
-<p class="small">
-Kesinleştir butonuna basılan tebligatlar buraya taşınır ve aktif takip listesinden çıkar.
-</p>
-
+<h3 style="margin-top:24px">Kesinleştirilen Tebligatlar</h3>
 <div style="overflow:auto">
-
 <table>
-
 <thead>
 <tr>
 <th>Dosya</th>
@@ -467,15 +465,11 @@ Kesinleştir butonuna basılan tebligatlar buraya taşınır ve aktif takip list
 <th>Durum</th>
 </tr>
 </thead>
-
 <tbody id="finalizedNotificationTable"></tbody>
-
 </table>
-
 </div>
 
 </section>
-
 
 <!-- MÜZEKKERE -->
 
@@ -536,6 +530,26 @@ Müzekkere Ekle
 
 </section>
 
+
+
+<!-- TALİ KARAR FİŞLERİ -->
+<section id="taliKarar" class="card hidden">
+<h2>Tali Karar Fişleri</h2>
+<p class="small">Kamu davasının ertelenmesi (KADEK) tebligatı kesinleştirildiğinde dosya otomatik olarak burada fiş bekleyenler listesine düşer.</p>
+<div id="taliPendingList"></div>
+<div id="taliFormArea" style="margin-top:20px"></div>
+</section>
+
+<section id="completedTaliKarar" class="card hidden">
+<h2>Tamamlanan Tali Karar Fişleri</h2>
+<p class="small">Tamamlanan tali karar fişleri burada arşivlenir.</p>
+<input id="completedTaliSearch" placeholder="Dosya no, birim veya suç ara..." oninput="renderCompletedTaliKarar()">
+<button class="secondary" onclick="toggleListSort('completedTaliKarar')" style="margin-top:8px">↕ Tarihe göre: <span id="completedTaliKararSortLabel">Azalan</span></button>
+<div style="overflow:auto;margin-top:12px">
+<table><thead><tr><th>Dosya No</th><th>Birim</th><th>Suç</th><th>Tebliğ</th><th>Kesinleşme</th><th>Fiş Tarihi</th><th>Karar No</th><th>Durum</th></tr></thead>
+<tbody id="completedTaliTable"></tbody></table>
+</div>
+</section>
 
 <!-- TAMAMLANAN MÜZEKKERELER -->
 
@@ -603,8 +617,14 @@ Cevabı geldi olarak işaretlenen müzekkereler burada arşivlenir.
 <section id="inactivity" class="card hidden">
 <h2>⏱ Süre Kontrolü</h2>
 <p class="small">Dosyanın son müzekkere işlemi esas alınır. Son müzekkere gönderim tarihinden itibaren 60 günden fazla işlem yapılmamışsa dosya burada gecikmede gösterilir. Akıbet veya tekit tarihi girildiğinde o tarih yeni müzekkere gönderim tarihi kabul edilir ve süre sıfırlanır.</p>
-<div class="stats" style="margin:12px 0 20px"><div class="stat">Gecikmede Olan Dosya<strong id="inactivityCount">0</strong></div></div>
+<div class="stats" style="margin:12px 0 20px">
+<div class="stat">Toplam Takipte<strong id="inactivityTotal">0</strong></div>
+<div class="stat">🟢 Normal<strong id="inactivityNormal">0</strong></div>
+<div class="stat">🟡 Yaklaşan<strong id="inactivityApproaching">0</strong></div>
+<div class="stat">🔴 Gecikmede<strong id="inactivityCount">0</strong></div>
+</div>
 <input id="inactivitySearch" placeholder="Dosya no, birim veya suç ara..." oninput="renderInactivity()">
+<p class="small">Tüm derdest dosyaların son müzekkere işlemi gösterilir. 45 güne kadar normal, 45–60 gün arası yaklaşan, 60 günün üzeri gecikmede kabul edilir. Akıbet veya tekit tarihi girildiğinde yeni işlem tarihi esas alınır.</p>
 <div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Dosya No</th><th>Birim</th><th>Son İşlem</th><th>Son İşlem Tarihi</th><th>İşlemsizlik</th><th>Durum</th></tr></thead><tbody id="inactivityTable"></tbody></table></div>
 </section>
 
@@ -645,6 +665,31 @@ Cevabı geldi olarak işaretlenen müzekkereler burada arşivlenir.
 <div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Dosya No</th><th>Birim</th><th>Suç</th><th>Durum</th><th></th></tr></thead><tbody id="birlesmeTable"></tbody></table></div>
 </section>
 
+<section id="kamuErteleme" class="card hidden">
+<h2>Kamu Davasının Ertelenmesi — Sonuçlanan</h2>
+<input id="kamuErtelemeSearch" placeholder="Kamu davasının ertelenmesi dosyalarında ara..." oninput="renderDecisionSections()">
+<div class="grid" style="margin-top:4px">
+<div>
+<label>Denetimli Serbestlik</label>
+<select id="kamuDenetimliFilter" onchange="renderDecisionSections()">
+<option value="all">Tümü</option>
+<option value="yes">Gönderilmiş</option>
+<option value="no">Gönderilmemiş</option>
+</select>
+</div>
+<div>
+<label>Tali Karar Fişi</label>
+<select id="kamuTaliFilter" onchange="renderDecisionSections()">
+<option value="all">Tümü</option>
+<option value="yes">Yapılmış</option>
+<option value="no">Yapılmamış</option>
+</select>
+</div>
+</div>
+<button class="secondary" onclick="toggleListSort('kamuErteleme')" style="margin-top:8px">↕ Tarihe göre: <span id="kamuErtelemeSortLabel">Azalan</span></button>
+<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Dosya No</th><th>Birim</th><th>Suç</th><th>Durum</th><th></th></tr></thead><tbody id="kamuErtelemeTable"></tbody></table></div>
+</section>
+
 <section id="statistics" class="card hidden">
 <h2>Aylık İş Mahiyeti</h2>
 <label>Ay <input id="statsMonth" type="month"></label>
@@ -667,7 +712,6 @@ let memoSaving = false;
 let listSortAsc = {
     files:true,
     notifications:true,
-    finalizedNotifications:false,
     memos:true,
     completedMemos:false,
     kyok:false,
@@ -675,7 +719,9 @@ let listSortAsc = {
     resultsArchive:false,
     yetkisizlik:false,
     fezleke:false,
-    birlesme:false
+    birlesme:false,
+    kamuErteleme:false,
+    completedTaliKarar:false
 };
 
 function toggleListSort(key){
@@ -684,11 +730,12 @@ function toggleListSort(key){
     if(label) label.textContent=listSortAsc[key] ? "Artan" : "Azalan";
     if(key==="files") renderFiles();
     else if(key==="notifications") renderNotifications();
-    else if(key==="finalizedNotifications") renderFinalizedNotifications();
     else if(key==="memos") renderMemos();
     else if(key==="completedMemos") renderCompletedMemos();
     else if(key==="kyok" || key==="iddianame") renderStatusArchives();
     else if(key==="resultsArchive") renderResultsArchive();
+    else if(["yetkisizlik","fezleke","birlesme","kamuErteleme"].includes(key)) renderDecisionSections();
+    else if(key==="completedTaliKarar") renderCompletedTaliKarar();
 }
 
 function compareDates(a,b,getDate,key){
@@ -831,7 +878,7 @@ async function logout(){
 
 function section(id,button){
 
-    ["home","files","notifications","finalizedNotifications","memos","completedMemos","kyokArchive","iddianameArchive","statistics","inactivity","reminders","yetkisizlik","fezleke","birlesme"]
+    ["home","files","notifications","memos","completedMemos","completedTaliKarar","kyokArchive","iddianameArchive","statistics","inactivity","reminders","yetkisizlik","fezleke","birlesme","kamuErteleme","taliKarar"]
     .forEach(x=>{
         document.getElementById(x).classList.add("hidden");
     });
@@ -846,6 +893,52 @@ function section(id,button){
 
 
 /* VERİLER */
+
+
+function renderOverdueHomeReminder(){
+    const box=document.getElementById("overdueHomeReminderBody");
+    if(!box) return;
+
+    const todayStr=today();
+    const activeFiles=(files||[]).filter(f => !f.durum || f.durum==="derdest");
+
+    const overdue=activeFiles.map(f=>{
+        const ms=(memos||[]).filter(m=>m.dosya_id===f.id);
+        let latest=null;
+        ms.forEach(m=>{
+            const dates=[
+                m.gonderim_tarihi,
+                m.akibet_sorulma_tarihi,
+                m.tekit_tarihi
+            ].filter(Boolean);
+            dates.forEach(d=>{
+                if(!latest || String(d)>String(latest)) latest=d;
+            });
+        });
+        if(!latest) return null;
+        const days=Math.floor((new Date(todayStr)-new Date(latest))/(1000*60*60*24));
+        return {f,latest,days};
+    }).filter(x=>x && x.days>60)
+      .sort((a,b)=>b.days-a.days);
+
+    if(!overdue.length){
+        box.innerHTML='<span style="color:#16803c;font-weight:600">Süresi 60 günü aşmış dosya bulunmuyor.</span>';
+        return;
+    }
+
+    box.innerHTML = overdue.map(x=>`
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid #eee">
+            <div>
+                <strong>${escapeHtml(x.f.dosya_no||"-")}</strong>
+                <span class="small"> — ${escapeHtml(x.f.birim||"")}</span>
+            </div>
+            <span style="color:#dc2626;font-weight:700">${x.days} gün gecikmede</span>
+        </div>
+    `).join("") + `
+        <div style="margin-top:10px">
+            <button class="secondary" onclick="section('durationControl')">Süre Kontrolüne Git</button>
+        </div>`;
+}
 
 async function load(){
 
@@ -1024,6 +1117,41 @@ async function setDecisionFlag(id,key,value){
     const tab=document.querySelector(`.tab[onclick=\"section('${tabMap[key]}',this)\"]`);
     if(tab) section(tabMap[key],tab);
 }
+function getKamuWorkflowState(){
+    try{return JSON.parse(localStorage.getItem("kamuErtelemeWorkflow")||"{}");}
+    catch(e){return {};}
+}
+function saveKamuWorkflowState(state){localStorage.setItem("kamuErtelemeWorkflow",JSON.stringify(state));}
+function getKamuWorkflow(id){
+    const s=getKamuWorkflowState();
+    return s[id] || {denetimli:false,tali:false};
+}
+
+function syncKamuTaliFromFinalizedNotification(fileId){
+    if(!fileId) return;
+    const s=getKamuWorkflowState();
+    const current=s[fileId]||{denetimli:false,tali:false};
+    current.tali=true;
+    s[fileId]=current;
+    saveKamuWorkflowState(s);
+}
+
+function markDenetimli(id){
+    const s=getKamuWorkflowState();
+    const current=s[id]||{denetimli:false,tali:false};
+    current.denetimli=true;
+    s[id]=current;
+    saveKamuWorkflowState(s);
+    renderDecisionSections();
+}
+function markTaliHazir(id){
+    const s=getKamuWorkflowState();
+    const current=s[id]||{denetimli:false,tali:false};
+    current.tali=true;
+    s[id]=current;
+    saveKamuWorkflowState(s);
+    renderDecisionSections();
+}
 function isDecisionFlagged(id,key){return false;}
 function decisionButton(id,key,label){
     return `<button type="button" class="secondary" onclick="updateFileStatus(\'${id}\',\'${key}\')">${label}</button>`;
@@ -1032,21 +1160,57 @@ function renderDecisionSections(){
     const map=[
         ["yetkisizlik","yetkisizlikTable","Yetkisizlik"],
         ["fezleke","fezlekeTable","Fezleke"],
-        ["birlesme","birlesmeTable","Birleştirme"]
+        ["birlesme","birlesmeTable","Birleştirme"],
+        ["kamuErteleme","kamuErtelemeTable","Kamu Davasının Ertelenmesi"]
     ];
     map.forEach(([key,tableId,label])=>{
         const table=document.getElementById(tableId); if(!table)return;
         const q=(document.getElementById(key+"Search")?.value||"").toLowerCase();
-        const rows=files.filter(f=>f.durum==="arsiv" && f.karar_turu===key && (
+        const dbKey = key === "kamuErteleme" ? "kamu_davasinin_ertelenmesi" : key;
+        let rows=files.filter(f=>f.durum==="arsiv" && f.karar_turu===dbKey && (
             (f.dosya_no||"").toLowerCase().includes(q) ||
             (f.birim||"").toLowerCase().includes(q) ||
             (f.suc_turu||"").toLowerCase().includes(q)
-        )).sort((a,b)=>compareDates(a,b,f=>f.son_islem_tarihi||f.karar_tarihi||f.created_at,key));
+        ));
+        if(key === "kamuErteleme"){
+            const denFilter=document.getElementById("kamuDenetimliFilter")?.value || "all";
+            const taliFilter=document.getElementById("kamuTaliFilter")?.value || "all";
+            rows=rows.filter(f=>{
+                const wf=getKamuWorkflow(f.id);
+                const denOk=denFilter==="all" || (denFilter==="yes" ? wf.denetimli : !wf.denetimli);
+                const taliOk=taliFilter==="all" || (taliFilter==="yes" ? wf.tali : !wf.tali);
+                return denOk && taliOk;
+            });
+        }
+        rows.sort((a,b)=>compareDates(a,b,f=>f.son_islem_tarihi||f.karar_tarihi||f.created_at,key));
         const sortLabel=document.getElementById(key+"SortLabel");
         if(sortLabel) sortLabel.textContent=listSortAsc[key] ? "Artan" : "Azalan";
-        table.innerHTML=rows.length?rows.map(f=>`<tr><td><strong>${escapeHtml(f.dosya_no||"-")}</strong></td><td>${escapeHtml(f.birim||"-")}</td><td>${escapeHtml(f.suc_turu||"-")}</td><td><span class="badge red">${label}</span></td><td><span class="small">Sonuçlandı</span></td></tr>`).join(""):`<tr><td colspan="5" class="small">Bu alanda dosya yok.</td></tr>`;
+        table.innerHTML=rows.length?rows.map(f=>{
+            const wf = key === "kamuErteleme" ? getKamuWorkflow(f.id) : null;
+            const workflowHtml = key === "kamuErteleme" ? `
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                    <button type="button"
+                        style="${wf.denetimli
+                            ? 'background:#27ae60;color:white;border:1px solid #27ae60'
+                            : 'background:#dc2626;color:white;border:1px solid #dc2626'}"
+                        onclick="markDenetimli('${f.id}')">
+                        ${wf.denetimli ? '✓ Denetimli Serbestliğe Gönderildi' : 'Denetimli Serbestliğe Gönderilmedi'}
+                    </button>
+                    <button type="button"
+                        style="${wf.tali
+                            ? 'background:#27ae60;color:white;border:1px solid #27ae60'
+                            : 'background:#dc2626;color:white;border:1px solid #dc2626'}"
+                        onclick="markTaliHazir('${f.id}')">
+                        ${wf.tali ? '✓ Tali Karar Fişi Hazırlandı' : 'Tali Karar Fişi Hazırlanmadı'}
+                    </button>
+                    <button type="button" class="secondary" onclick="updateFileStatus('${f.id}','iddianame')">İddianame</button>
+                    <button type="button" class="secondary" onclick="updateFileStatus('${f.id}','kyok')">KYOK</button>
+                </div>` : `<span class="small">Sonuçlandı</span>`;
+            return `<tr><td><strong>${escapeHtml(f.dosya_no||"-")}</strong></td><td>${escapeHtml(f.birim||"-")}</td><td>${escapeHtml(f.suc_turu||"-")}</td><td><span class="badge red">${label}</span></td><td>${workflowHtml}</td></tr>`;
+        }).join(""):`<tr><td colspan="5" class="small">Bu alanda dosya yok.</td></tr>`;
     });
 }
+
 function getReminders(){
     try{return JSON.parse(localStorage.getItem("fileReminders")||"[]");}catch(e){return [];} 
 }
@@ -1062,7 +1226,10 @@ function addReminder(){
     saveReminders();
     document.getElementById("rTarih").value=""; document.getElementById("rNot").value="";
     renderReminders();
-}
+    renderTaliKarar();
+    renderCompletedTaliKarar();
+
+    renderOverdueHomeReminder();}
 function deleteReminder(id){
     reminders=getReminders().filter(r=>r.id!==id); saveReminders(); renderReminders();
 }
@@ -1116,6 +1283,7 @@ function renderFiles(){
             <button type="button" class="secondary" onclick="updateFileStatus('${f.id}','yetkisizlik')">Yetkisizlik</button>
             <button type="button" class="secondary" onclick="updateFileStatus('${f.id}','fezleke')">Fezleke</button>
             <button type="button" class="secondary" onclick="updateFileStatus('${f.id}','birlesme')">Birleştirme</button>
+            <button type="button" class="secondary" onclick="updateFileStatus('${f.id}','kamu_davasinin_ertelenmesi')">Kamu Davasının Ertelenmesi</button>
         </div>
     </td>
 
@@ -1136,7 +1304,8 @@ async function updateFileStatus(id,status){
         kyok:"KYOK verildi",
         yetkisizlik:"Yetkisizlik kararı verildi",
         fezleke:"Fezleke düzenlendi",
-        birlesme:"Birleştirme kararı verildi"
+        birlesme:"Birleştirme kararı verildi",
+        kamu_davasinin_ertelenmesi:"Kamu davasının ertelenmesi kararı verildi"
     };
 
     if(!labels[status]) return;
@@ -1305,6 +1474,16 @@ function fillSelects(){
     }
 }
 
+/* TEBLİGAT TÜRLERİ */
+const notificationTypesKey = "tebligatTurleri";
+function getNotificationTypes(){
+    try{return JSON.parse(localStorage.getItem(notificationTypesKey)||"{}");}catch(e){return {};}
+}
+function saveNotificationTypes(map){localStorage.setItem(notificationTypesKey,JSON.stringify(map));}
+function getNotificationType(id){return getNotificationTypes()[id] || "genel";}
+function setNotificationType(id,type){const map=getNotificationTypes(); map[id]=type; saveNotificationTypes(map);}
+function isKamuErtelemeNotification(n){return getNotificationType(n.id)==="kamu_davasinin_ertelenmesi";}
+
 /* TEBLİGAT */
 
 async function addNotification(){
@@ -1315,12 +1494,15 @@ async function addNotification(){
     const tarih =
         document.getElementById("tarih").value;
 
+    const tebligatTuru =
+        document.getElementById("tTebligatTuru")?.value || "genel";
+
     if(!dosya || !tarih){
         alert("Tebligat için dosya ve tebliğ tarihi seçmelisiniz.");
         return;
     }
 
-    const {error}=await supabaseClient
+    const {data,error}=await supabaseClient
         .from("tebligatlar")
         .insert({
             owner_id:user.id,
@@ -1333,7 +1515,15 @@ async function addNotification(){
         return;
     }
 
-    alert("Tebligat takibe alındı.");
+    if(data && data.id){
+        setNotificationType(data.id, tebligatTuru);
+    } else {
+        /* Supabase insert cevabı data kapalıysa son kaydı bularak türü ilişkilendir. */
+        const latest = await supabaseClient.from("tebligatlar").select("id").eq("owner_id",user.id).eq("dosya_id",dosya).eq("teblig_tarihi",tarih).order("created_at",{ascending:false}).limit(1).maybeSingle();
+        if(latest.data?.id) setNotificationType(latest.data.id, tebligatTuru);
+    }
+
+    alert(tebligatTuru==="kamu_davasinin_ertelenmesi" ? "Kamu davasının ertelenmesi tebligatı ayrı takibe alındı." : "Tebligat takibe alındı.");
     await load();
 }
 
@@ -1386,115 +1576,164 @@ function notificationCanBeFinalized(n){
 
 function renderNotifications(){
 
-    const activeNotifications =
-        notifications
-        .filter(n => n.durum !== "kesinlesti")
-        .sort((a,b)=>compareDates(a,b,notificationKesinlestirmeTarihi,"notifications"));
-
+    const selectedType = document.getElementById("tTebligatTuru")?.value || "genel";
     const q = (document.getElementById("notificationSearch")?.value || "").toLowerCase();
 
-    const filtered = activeNotifications.filter(n => {
+    const matches = n => {
+        if(getNotificationType(n.id) !== selectedType) return false;
         const dosyaNo = files.find(f => f.id === n.dosya_id)?.dosya_no || "";
         return dosyaNo.toLowerCase().includes(q) ||
                String(n.teblig_tarihi || "").includes(q) ||
                String(n.kesinlestirme_tarihi || "").includes(q);
-    });
+    };
 
-    document.getElementById("notificationTable").innerHTML=
-    filtered.map(n=>{
+    const activeNotifications = notifications
+        .filter(n => n.durum !== "kesinlesti" && matches(n))
+        .sort((a,b)=>compareDates(a,b,notificationKesinlestirmeTarihi,"notifications"));
 
-        const sonGun =
-            n.uzatilmis_son_gun || n.hesaplanan_son_gun || n.sure_son_gunu || addDays(n.teblig_tarihi, 14);
+    const finalized = notifications
+        .filter(n => n.durum === "kesinlesti" && matches(n))
+        .sort((a,b)=>compareDates(a,b,n=>n.kesinlestirme_tarihi,"notifications"));
 
+    const activeTable = document.getElementById("notificationTable");
+    const finalizedTable = document.getElementById("finalizedNotificationTable");
+    if(!activeTable || !finalizedTable) return;
+
+    activeTable.innerHTML = activeNotifications.length ? activeNotifications.map(n=>{
+        const sonGun = n.uzatilmis_son_gun || n.hesaplanan_son_gun || n.sure_son_gunu || addDays(n.teblig_tarihi,14);
         return `
         <tr>
+            <td>${escapeHtml(files.find(f => f.id === n.dosya_id)?.dosya_no || "-")}</td>
+            <td>${formatDate(n.teblig_tarihi)}</td>
+            <td>${formatDate(sonGun)}</td>
+            <td>${formatDate(n.kesinlestirme_tarihi)}</td>
+            <td>${n.kesinlestirme_tarihi && today()>=n.kesinlestirme_tarihi
+                ? '<span class="badge red">KESİNLEŞTİRİLEBİLİR</span>'
+                : '<span class="badge gray">BEKLİYOR</span>'}</td>
+            <td>${notificationCanBeFinalized(n)
+                ? `<button class="primary" onclick="finalizeNotification('${n.id}')">Kesinleştir</button>`
+                : `<button class="secondary" disabled title="Tebligatın kesinleşme süresi henüz dolmadı.">Süresi Dolmadı</button>`}</td>
+        </tr>`;
+    }).join("") : `<tr><td colspan="6" class="small">Seçilen alanda aktif tebligat yok.</td></tr>`;
 
-        <td>${escapeHtml(files.find(f => f.id === n.dosya_id)?.dosya_no || "-")}</td>
+    finalizedTable.innerHTML = finalized.length ? finalized.map(n=>{
+        const sonGun = n.uzatilmis_son_gun || n.hesaplanan_son_gun || n.sure_son_gunu || addDays(n.teblig_tarihi,14);
+        return `
+        <tr>
+            <td>${escapeHtml(files.find(f => f.id === n.dosya_id)?.dosya_no || "-")}</td>
+            <td>${formatDate(n.teblig_tarihi)}</td>
+            <td>${formatDate(sonGun)}</td>
+            <td>${formatDate(n.kesinlestirme_tarihi)}</td>
+            <td><span class="badge green">KESİNLEŞTİ</span></td>
+        </tr>`;
+    }).join("") : `<tr><td colspan="5" class="small">Seçilen alanda kesinleştirilen tebligat yok.</td></tr>`;
 
-        <td>${formatDate(n.teblig_tarihi)}</td>
-
-        <td>${formatDate(sonGun)}</td>
-
-        <td>${formatDate(n.kesinlestirme_tarihi)}</td>
-
-        <td>
-        ${
-            n.durum==="kesinlesti"
-            ?
-            '<span class="badge green">KESİNLEŞTİ</span>'
-            :
-            n.kesinlestirme_tarihi &&
-            today()>=n.kesinlestirme_tarihi
-            ?
-            '<span class="badge red">KESİNLEŞTİRİLEBİLİR</span>'
-            :
-            '<span class="badge gray">BEKLİYOR</span>'
-        }
-        </td>
-
-        <td>
-        ${
-            n.durum==="kesinlesti"
-            ? ""
-            : notificationCanBeFinalized(n)
-              ? `<button
-                    class="primary"
-                    onclick="finalizeNotification('${n.id}')">
-                    Kesinleştir
-                 </button>`
-              : `<button
-                    class="secondary"
-                    disabled
-                    title="Tebligatın kesinleşme süresi henüz dolmadı.">
-                    Süresi Dolmadı
-                 </button>`
-        }
-        </td>
-
-        </tr>
-        `;
-    }).join("");
+    const selectedLabel = selectedType === "kamu_davasinin_ertelenmesi" ? "Kamu Davasının Ertelenmesi" : "Hazırlık Bürosu";
+    const heading = document.getElementById("notificationAreaLabel");
+    if(heading) heading.textContent = selectedLabel;
 }
-
-
 
 function renderFinalizedNotifications(){
+    renderNotifications();
+}
 
-    const finalized =
-        notifications
-        .filter(n => n.durum === "kesinlesti")
-        .sort((a,b)=>compareDates(a,b,n=>n.kesinlestirme_tarihi,"finalizedNotifications"));
-
-    const q = (document.getElementById("finalizedNotificationSearch")?.value || "").toLowerCase();
-    const filtered = finalized.filter(n => {
-        const dosyaNo = files.find(f => f.id === n.dosya_id)?.dosya_no || "";
-        return dosyaNo.toLowerCase().includes(q) ||
-               String(n.teblig_tarihi || "").includes(q) ||
-               String(n.kesinlestirme_tarihi || "").includes(q);
-    });
-
-    document.getElementById("finalizedNotificationTable").innerHTML =
-        filtered.length
-        ?
-        filtered.map(n=>{
-            const sonGun =
-                n.uzatilmis_son_gun || n.hesaplanan_son_gun || n.sure_son_gunu || addDays(n.teblig_tarihi, 14);
-
-            return `
-            <tr>
-                <td>${escapeHtml(files.find(f => f.id === n.dosya_id)?.dosya_no || "-")}</td>
-                <td>${formatDate(n.teblig_tarihi)}</td>
-                <td>${formatDate(sonGun)}</td>
-                <td>${formatDate(n.kesinlestirme_tarihi)}</td>
-                <td><span class="badge green">KESİNLEŞTİ</span></td>
-            </tr>
-            `;
-        }).join("")
-        :
-        `<tr><td colspan="5">Henüz kesinleştirilen tebligat yok.</td></tr>`;
+function renderKamuErtelemeNotifications(){
+    renderNotifications();
 }
 
 
+
+function getTaliFisiList(){
+    try{return JSON.parse(localStorage.getItem("katip_tali_karar_fisleri")||"[]");}
+    catch(e){return [];}
+}
+function saveTaliFisiList(list){localStorage.setItem("katip_tali_karar_fisleri",JSON.stringify(list));}
+function upsertTaliFisiFromNotification(n){
+    if(getNotificationType(n.id)!=="kamu_davasinin_ertelenmesi") return;
+    const list=getTaliFisiList();
+    if(list.some(x=>x.tebligat_id===n.id)) return;
+    const f=files.find(x=>x.id===n.dosya_id)||{};
+    list.push({
+        id:crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+        tebligat_id:n.id,
+        dosya_id:n.dosya_id,
+        durum:"bekliyor",
+        dosya_no:f.dosya_no||"",
+        birim:f.birim||"",
+        suc_turu:f.suc_turu||"",
+        karar_turu:"kamu_davasinin_ertelenmesi",
+        karar_tarihi:f.karar_tarihi||f.son_islem_tarihi||"",
+        teblig_tarihi:n.teblig_tarihi||"",
+        kesinlestirme_tarihi:n.kesinlestirme_tarihi||today(),
+        karar_no:"",
+        fis_tarihi:today(),
+        aciklama:"",
+        created_at:new Date().toISOString(),
+        updated_at:new Date().toISOString()
+    });
+    saveTaliFisiList(list);
+}
+function renderTaliKarar(){
+    const list=getTaliFisiList();
+    const pending=list.filter(x=>x.durum!=="tamamlandi");
+    const badge=document.getElementById("taliBadge");
+    if(badge){badge.textContent=pending.length;badge.classList.toggle("hidden",pending.length===0);}
+    const box=document.getElementById("taliPendingList");
+    if(!box)return;
+    if(!pending.length){
+        box.innerHTML='<div class="card" style="border:1px solid #d1fae5">🟢 Tali karar fişi bekleyen dosya yok.</div>';
+        document.getElementById("taliFormArea").innerHTML="";
+    }else{
+        box.innerHTML=`<div style="overflow:auto"><table><thead><tr><th>Dosya</th><th>Birim</th><th>Karar</th><th>Tebliğ</th><th>Kesinleşme</th><th>Durum</th><th></th></tr></thead><tbody>`+
+        pending.map(x=>`<tr><td>${escapeHtml(x.dosya_no||"-")}</td><td>${escapeHtml(x.birim||"-")}</td><td>Kamu Davasının Ertelenmesi</td><td>${formatDate(x.teblig_tarihi)}</td><td>${formatDate(x.kesinlestirme_tarihi)}</td><td><span class="badge red">Fiş Bekliyor</span></td><td><button style="background:#27ae60;color:white;border:1px solid #27ae60" onclick="openTaliFisi('${x.id}')">Tali Karar Fişi</button></td></tr>`).join("")+`</tbody></table></div>`;
+        document.getElementById("taliFormArea").innerHTML="";
+    }
+    renderCompletedTaliKarar();
+}
+function renderCompletedTaliKarar(){
+    const table=document.getElementById("completedTaliTable"); if(!table)return;
+    const q=(document.getElementById("completedTaliSearch")?.value||"").toLowerCase();
+    const list=getTaliFisiList().filter(x=>x.durum==="tamamlandi" && (
+        (x.dosya_no||"").toLowerCase().includes(q) ||
+        (x.birim||"").toLowerCase().includes(q) ||
+        (x.suc_turu||"").toLowerCase().includes(q)
+    )).sort((a,b)=>compareDates(a,b,x=>x.fis_tarihi||x.updated_at||x.kesinlestirme_tarihi,"completedTaliKarar"));
+    const label=document.getElementById("completedTaliKararSortLabel");
+    if(label) label.textContent=listSortAsc.completedTaliKarar ? "Artan" : "Azalan";
+    table.innerHTML=list.length?list.map(x=>`<tr><td><strong>${escapeHtml(x.dosya_no||"-")}</strong></td><td>${escapeHtml(x.birim||"-")}</td><td>${escapeHtml(x.suc_turu||"-")}</td><td>${formatDate(x.teblig_tarihi)}</td><td>${formatDate(x.kesinlestirme_tarihi)}</td><td>${formatDate(x.fis_tarihi)}</td><td>${escapeHtml(x.karar_no||"-")}</td><td><span class="badge green">Tamamlandı</span></td></tr>`).join(""):`<tr><td colspan="8" class="small">Tamamlanan tali karar fişi bulunmuyor.</td></tr>`;
+}
+
+function openTaliFisi(id){
+    const x=getTaliFisiList().find(a=>a.id===id); if(!x)return;
+    document.getElementById("taliFormArea").innerHTML=`<div class="card" style="border:1px solid #dbeafe"><h3>Tali Karar Fişi</h3>
+    <div class="grid">
+    <div><label>Dosya No</label><input value="${x.dosya_no||""}" disabled></div>
+    <div><label>Birim</label><input value="${x.birim||""}" disabled></div>
+    <div><label>Suç Türü</label><input value="${x.suc_turu||""}" disabled></div>
+    <div><label>Karar Türü</label><input value="Kamu Davasının Ertelenmesi" disabled></div>
+    <div><label>Karar Tarihi</label><input id="taliKararTarihi" type="date" value="${x.karar_tarihi||""}"></div>
+    <div><label>Tebliğ Tarihi</label><input value="${x.teblig_tarihi||""}" disabled></div>
+    <div><label>Kesinleşme Tarihi</label><input value="${x.kesinlestirme_tarihi||""}" disabled></div>
+    <div><label>Karar No</label><input id="taliKararNo" value="${x.karar_no||""}" placeholder="Karar no"></div>
+    </div>
+    <label>Fiş Tarihi</label><input id="taliFisTarihi" type="date" value="${x.fis_tarihi||today()}">
+    <label>Açıklama</label><textarea id="taliAciklama" rows="4" placeholder="Gerekli açıklama / not">${x.aciklama||""}</textarea>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="primary" onclick="saveTaliFisi('${x.id}')">Fişi Tamamla</button><button class="secondary" onclick="renderTaliKarar()">Vazgeç</button></div>
+    </div>`;
+    document.getElementById("taliFormArea").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function saveTaliFisi(id){
+    const list=getTaliFisiList(); const x=list.find(a=>a.id===id); if(!x)return;
+    x.karar_tarihi=document.getElementById("taliKararTarihi")?.value||x.karar_tarihi;
+    x.karar_no=document.getElementById("taliKararNo")?.value?.trim()||"";
+    x.fis_tarihi=document.getElementById("taliFisTarihi")?.value||today();
+    x.aciklama=document.getElementById("taliAciklama")?.value?.trim()||"";
+    x.durum="tamamlandi"; x.updated_at=new Date().toISOString();
+    saveTaliFisiList(list);
+    markTaliHazir(x.dosya_id);
+    renderTaliKarar();
+    alert("Tali karar fişi tamamlandı.");
+}
 async function finalizeNotification(id){
 
     /* UI engelini aşmaya karşı Supabase'den kaydı tekrar kontrol et. */
@@ -1550,7 +1789,8 @@ async function finalizeNotification(id){
         return;
     }
 
-    alert("Tebligat kesinleştirildi ve Kesinleştirilen Tebligatlar klasörüne taşındı.");
+    if(getNotificationType(n.id)==="kamu_davasinin_ertelenmesi") upsertTaliFisiFromNotification({...n,kesinlestirme_tarihi:today()});
+    alert(getNotificationType(n.id)==="kamu_davasinin_ertelenmesi" ? "Tebligat kesinleştirildi. Tali karar fişi bekleyenlere eklendi." : "Tebligat kesinleştirildi.");
     await load();
 }
 
@@ -1828,9 +2068,18 @@ function renderDashboard(){
     const kyokCount =
     files.filter(x => x.karar_turu === "kyok").length;
 
-    const kesin=
+    const kesinHazirlik =
     notifications.filter(x=>
         x.durum!=="kesinlesti" &&
+        getNotificationType(x.id) !== "kamu_davasinin_ertelenmesi" &&
+        x.kesinlestirme_tarihi &&
+        today()>=x.kesinlestirme_tarihi
+    ).length;
+
+    const kesinKamu =
+    notifications.filter(x=>
+        x.durum!=="kesinlesti" &&
+        getNotificationType(x.id) === "kamu_davasinin_ertelenmesi" &&
         x.kesinlestirme_tarihi &&
         today()>=x.kesinlestirme_tarihi
     ).length;
@@ -1860,20 +2109,27 @@ function renderDashboard(){
     const kyokEl = document.getElementById("kyokCount");
     if (iddEl) iddEl.textContent = iddianameCount;
     if (kyokEl) kyokEl.textContent = kyokCount;
-    document.getElementById("kesin").textContent=kesin;
+    document.getElementById("kesinHazirlik").textContent=kesinHazirlik;
+    document.getElementById("kesinKamu").textContent=kesinKamu;
     document.getElementById("akibet").textContent=akibet;
 
 
     let html="";
 
-    if(kesin){
-
+    if(kesinHazirlik){
         html+=`
         <div class="card alert">
-        <strong>🔴 ${kesin} karar kesinleştirilebilir.</strong>
+        <strong>🔴 Hazırlık Bürosu: ${kesinHazirlik} karar kesinleştirilebilir.</strong>
         </div>
         `;
+    }
 
+    if(kesinKamu){
+        html+=`
+        <div class="card alert">
+        <strong>🔴 Kamu Davasının Ertelenmesi: ${kesinKamu} karar kesinleştirilebilir.</strong>
+        </div>
+        `;
     }
 
     if(akibet){
@@ -2023,6 +2279,10 @@ function renderMonthlyStats(){
             f.karar_turu === "kyok" &&
             monthKey(f.karar_tarihi || f.son_islem_tarihi || f.acilis_tarihi) === month
         ).length,
+        kamuErteleme: files.filter(f =>
+            f.karar_turu === "kamu_davasinin_ertelenmesi" &&
+            monthKey(f.karar_tarihi || f.son_islem_tarihi || f.acilis_tarihi) === month
+        ).length,
         muzekere: memos.filter(m => {
             const tarih = m.gonderim_tarihi || m.created_at || m.tarih;
             return monthKey(tarih) === month;
@@ -2042,6 +2302,7 @@ function renderMonthlyStats(){
         const c = monthlyCounts(mm);
         annual.iddianame += Number(c.iddianame) || 0;
         annual.kyok += Number(c.kyok) || 0;
+        annual.kamuErteleme += Number(c.kamuErteleme) || 0;
         annual.muzekere += Number(c.muzekere) || 0;
         annual.kesinlesen += Number(c.kesinlesen) || 0;
     }
@@ -2060,6 +2321,7 @@ function renderMonthlyStats(){
           <td>${monthNames[m-1]}</td>
           <td>${Number(c.iddianame) || 0}</td>
           <td>${Number(c.kyok) || 0}</td>
+          <td>${Number(c.kamuErteleme) || 0}</td>
           <td>${Number(c.muzekere) || 0}</td>
           <td>${Number(c.kesinlesen) || 0}</td>
         </tr>`;
@@ -2069,6 +2331,7 @@ function renderMonthlyStats(){
       <div class="grid">
         <div class="card"><strong>${Number(current.iddianame) || 0}</strong><br>Bu ay iddianame</div>
         <div class="card"><strong>${Number(current.kyok) || 0}</strong><br>Bu ay KYOK</div>
+        <div class="card"><strong>${Number(current.kamuErteleme) || 0}</strong><br>Bu ay kamu davasının ertelenmesi</div>
         <div class="card"><strong>${Number(current.muzekere) || 0}</strong><br>Bu ay müzekkere</div>
         <div class="card"><strong>${Number(current.kesinlesen) || 0}</strong><br>Bu ay kesinleşen</div>
       </div>
@@ -2077,6 +2340,7 @@ function renderMonthlyStats(){
       <div class="grid">
         <div class="card"><strong>${Number(annual.iddianame) || 0}</strong><br>Yıllık iddianame</div>
         <div class="card"><strong>${Number(annual.kyok) || 0}</strong><br>Yıllık KYOK</div>
+        <div class="card"><strong>${Number(annual.kamuErteleme) || 0}</strong><br>Yıllık kamu davasının ertelenmesi</div>
         <div class="card"><strong>${Number(annual.muzekere) || 0}</strong><br>Yıllık müzekkere</div>
         <div class="card"><strong>${Number(annual.kesinlesen) || 0}</strong><br>Yıllık kesinleşme</div>
       </div>
@@ -2089,6 +2353,7 @@ function renderMonthlyStats(){
             <th>Ay</th>
             <th>İddianame</th>
             <th>KYOK</th>
+            <th>Kamu Davasının Ertelenmesi</th>
             <th>Müzekkere</th>
             <th>Kesinleşen</th>
           </tr>
@@ -2113,19 +2378,56 @@ function getLastMemoForFile(fileId){
         .sort((a,b)=>String(b.gonderim_tarihi).localeCompare(String(a.gonderim_tarihi)))[0]||null;
 }
 function renderInactivity(){
-    const table=document.getElementById("inactivityTable"), count=document.getElementById("inactivityCount");
+    const table=document.getElementById("inactivityTable");
     if(!table)return;
     const q=(document.getElementById("inactivitySearch")?.value||"").toLowerCase();
+
     const rows=files.filter(f=>f.durum==="derdest").map(f=>{
-        const memo=getLastMemoForFile(f.id), lastDate=memo?.gonderim_tarihi||null;
-        return {f,memo,lastDate,days:lastDate?daysBetween(lastDate,today()):null};
-    }).filter(x=>x.lastDate&&x.days>60).filter(x=>{
+        const memo=getLastMemoForFile(f.id);
+        const lastDate=memo?.gonderim_tarihi||null;
+        const days=lastDate?Math.max(0,daysBetween(lastDate,today())):null;
+        let status="no-memo", label="Müzekkere bekleniyor", cls="gray";
+        if(lastDate){
+            if(days>60){ status="late"; label="60 GÜNÜ AŞTI"; cls="red"; }
+            else if(days>=45){ status="approaching"; label="YAKLAŞIYOR"; cls="orange"; }
+            else { status="normal"; label="NORMAL"; cls="green"; }
+        }
+        return {f,memo,lastDate,days,status,label,cls};
+    }).filter(x=>{
         const text=[x.f.dosya_no,x.f.birim,x.f.suc_turu].map(v=>String(v||"").toLowerCase()).join(" ");
         return !q||text.includes(q);
-    }).sort((a,b)=>b.days-a.days);
-    if(count)count.textContent=rows.length;
-    table.innerHTML=rows.length?rows.map(x=>`<tr><td><strong>${escapeHtml(x.f.dosya_no||"-")}</strong></td><td>${escapeHtml(x.f.birim||"-")}</td><td>${x.memo?.akibet_soruldu?"Akıbet":x.memo?.tekit_edildi?"Tekit":"Müzekkere"}</td><td>${formatDate(x.lastDate)}</td><td><span class="badge red">${x.days} gün</span></td><td><span class="badge red">60 GÜNÜ AŞTI</span></td></tr>`).join(""):`<tr><td colspan="6" class="small">60 günü aşan işlemsiz dosya bulunmuyor.</td></tr>`;
+    }).sort((a,b)=>{
+        if(a.days===null && b.days!==null)return 1;
+        if(a.days!==null && b.days===null)return -1;
+        return (b.days??-1)-(a.days??-1);
+    });
+
+    const normal=rows.filter(x=>x.status==="normal").length;
+    const approaching=rows.filter(x=>x.status==="approaching").length;
+    const late=rows.filter(x=>x.status==="late").length;
+    const totalEl=document.getElementById("inactivityTotal");
+    const normalEl=document.getElementById("inactivityNormal");
+    const approachingEl=document.getElementById("inactivityApproaching");
+    const countEl=document.getElementById("inactivityCount");
+    if(totalEl)totalEl.textContent=rows.length;
+    if(normalEl)normalEl.textContent=normal;
+    if(approachingEl)approachingEl.textContent=approaching;
+    if(countEl)countEl.textContent=late;
+
+    table.innerHTML=rows.length?rows.map(x=>{
+        const action=x.memo?.akibet_soruldu?"Akıbet":x.memo?.tekit_edildi?"Tekit":"Müzekkere";
+        const daysText=x.days===null?"—":`${x.days} gün`;
+        return `<tr>
+            <td><strong>${escapeHtml(x.f.dosya_no||"-")}</strong></td>
+            <td>${escapeHtml(x.f.birim||"-")}</td>
+            <td>${x.lastDate?action:"Müzekkere yok"}</td>
+            <td>${x.lastDate?formatDate(x.lastDate):"—"}</td>
+            <td><span class="badge ${x.cls}">${daysText}</span></td>
+            <td><span class="badge ${x.cls}">${x.label}</span></td>
+        </tr>`;
+    }).join(""):`<tr><td colspan="6" class="small">Derdest dosya bulunmuyor.</td></tr>`;
 }
+
 function requestDate(title,defaultDate){
     const value=prompt(title+"\n\nTarih formatı: GG.AA.YYYY\nÖrnek: 12.10.2026",defaultDate?formatDate(defaultDate):formatDate(today()));
     if(value===null)return null;
@@ -2141,14 +2443,14 @@ function renderAll(){
     renderFiles();
     renderStatusArchives();
     renderNotifications();
-    renderFinalizedNotifications();
+    renderDecisionSections();
     renderMemos();
     renderCompletedMemos();
     renderDashboard();
     renderMonthlyStats();
     renderInactivity();
     renderReminders();
-    renderDecisionSections();
+    renderTaliKarar();
 }
 
 
