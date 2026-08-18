@@ -219,6 +219,10 @@ Dosyalar
 Tebligatlar
 </button>
 
+<button class="tab" onclick="section('finalizedNotifications',this)">
+Kesinleştirilen Tebligatlar
+</button>
+
 <button class="tab" onclick="section('memos',this)">
 Müzekkereler
 </button>
@@ -392,6 +396,39 @@ Tebligat Ekle
 </thead>
 
 <tbody id="notificationTable"></tbody>
+
+</table>
+
+</div>
+
+</section>
+
+
+<!-- KESİNLEŞTİRİLEN TEBLİGATLAR -->
+
+<section id="finalizedNotifications" class="card hidden">
+
+<h2>Kesinleştirilen Tebligatlar</h2>
+
+<p class="small">
+Kesinleştir butonuna basılan tebligatlar buraya taşınır ve aktif takip listesinden çıkar.
+</p>
+
+<div style="overflow:auto">
+
+<table>
+
+<thead>
+<tr>
+<th>Dosya</th>
+<th>Tebliğ</th>
+<th>Süre Sonu</th>
+<th>Kesinleştirme Tarihi</th>
+<th>Durum</th>
+</tr>
+</thead>
+
+<tbody id="finalizedNotificationTable"></tbody>
 
 </table>
 
@@ -656,7 +693,7 @@ async function logout(){
 
 function section(id,button){
 
-    ["home","files","notifications","memos","completedMemos","archive"]
+    ["home","files","notifications","finalizedNotifications","memos","completedMemos","archive"]
     .forEach(x=>{
         document.getElementById(x).classList.add("hidden");
     });
@@ -687,9 +724,8 @@ async function load(){
     files=f.data||[];
     console.log("DOSYALAR:", files);
 
-    // tebligat_takip yalnızca görüntüleme için kullanılan VIEW'dir.
     const t=await supabaseClient
-    .from("tebligat_takip")
+    .from("tebligatlar")
     .select("*");
 
     if(t.error){
@@ -936,20 +972,12 @@ async function addNotification(){
         return;
     }
 
-    // tebligat_takip bir VIEW; VIEW'e INSERT yapılamaz.
-    // Kaydı gerçek tablo olan tebligatlar'a yazıyoruz.
-    const hesaplananSonGun = addDays(tarih, 14);
-
     const {error}=await supabaseClient
         .from("tebligatlar")
         .insert({
             owner_id:user.id,
             dosya_id:dosya,
-            teblig_tarihi:tarih,
-            sure_gun:14,
-            hesaplanan_son_gun:hesaplananSonGun,
-            uzatilmis_son_gun:hesaplananSonGun,
-            durum:"bekliyor"
+            teblig_tarihi:tarih
         });
 
     if(error){
@@ -964,11 +992,14 @@ async function addNotification(){
 
 function renderNotifications(){
 
+    const activeNotifications =
+        notifications.filter(n => n.durum !== "kesinlesti");
+
     document.getElementById("notificationTable").innerHTML=
-    notifications.map(n=>{
+    activeNotifications.map(n=>{
 
         const sonGun =
-            n.sure_son_gunu || addDays(n.teblig_tarihi, 14);
+            n.uzatilmis_son_gun || n.hesaplanan_son_gun || n.sure_son_gunu || addDays(n.teblig_tarihi, 14);
 
         return `
         <tr>
@@ -1016,25 +1047,74 @@ function renderNotifications(){
 }
 
 
+
+function renderFinalizedNotifications(){
+
+    const finalized =
+        notifications
+        .filter(n => n.durum === "kesinlesti")
+        .sort((a,b) =>
+            String(b.kesinlestirme_tarihi || "")
+            .localeCompare(String(a.kesinlestirme_tarihi || ""))
+        );
+
+    document.getElementById("finalizedNotificationTable").innerHTML =
+        finalized.length
+        ?
+        finalized.map(n=>{
+            const sonGun =
+                n.uzatilmis_son_gun || n.hesaplanan_son_gun || n.sure_son_gunu || addDays(n.teblig_tarihi, 14);
+
+            return `
+            <tr>
+                <td>${escapeHtml(files.find(f => f.id === n.dosya_id)?.dosya_no || "-")}</td>
+                <td>${formatDate(n.teblig_tarihi)}</td>
+                <td>${formatDate(sonGun)}</td>
+                <td>${formatDate(n.kesinlestirme_tarihi)}</td>
+                <td><span class="badge green">KESİNLEŞTİ</span></td>
+            </tr>
+            `;
+        }).join("")
+        :
+        `<tr><td colspan="5">Henüz kesinleştirilen tebligat yok.</td></tr>`;
+}
+
+
 async function finalizeNotification(id){
+
+    const n = notifications.find(x => x.id === id);
+
+    if(!n){
+        alert("Tebligat bulunamadı.");
+        return;
+    }
+
+    const sonGun = n.uzatilmis_son_gun || n.hesaplanan_son_gun || n.sure_son_gunu || addDays(n.teblig_tarihi, 14);
+    const bugun = today();
+
+    if(sonGun > bugun){
+        alert("Bu tebligatın süresi henüz dolmadı. Süre sonu: " + formatDate(sonGun));
+        return;
+    }
 
     if(!confirm("Karar kesinleştirildi olarak işaretlensin mi?"))
     return;
 
     const {error}=await supabaseClient
-        .from("tebligatlar")
-        .update({
-            durum:"kesinlesti",
-            kesinlestirme_tarihi:today()
-        })
-        .eq("id",id)
-        .eq("owner_id",user.id);
+    .from("tebligatlar")
+    .update({
+        durum:"kesinlesti",
+        kesinlestirme_tarihi:today()
+    })
+    .eq("id",id)
+    .eq("owner_id",user.id);
 
     if(error){
-        alert("Tebligat güncellenemedi: " + error.message);
+        alert("Kesinleştirme başarısız: " + error.message);
         return;
     }
 
+    alert("Tebligat kesinleştirildi ve Kesinleştirilen Tebligatlar klasörüne taşındı.");
     await load();
 }
 
@@ -1407,6 +1487,7 @@ function renderAll(){
     renderFiles();
     renderArchive();
     renderNotifications();
+    renderFinalizedNotifications();
     renderMemos();
     renderCompletedMemos();
     renderDashboard();
