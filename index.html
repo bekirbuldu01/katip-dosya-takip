@@ -812,6 +812,10 @@ async function restoreFile(id){
 function fillSelects(){
     const tDosya = document.getElementById("tDosya");
     const mDosya = document.getElementById("mDosya");
+   
+
+
+}
 
     const eskiT = tDosya?.value || "";
     const eskiM = mDosya?.value || "";
@@ -826,12 +830,21 @@ function fillSelects(){
 
     tDosya.innerHTML = html;
     mDosya.innerHTML = html;
+if (tDosya && !tDosya.value && tDosya.options.length > 1) {
+    tDosya.selectedIndex = 1;
+}
 
-    if ([...tDosya.options].some(o => o.value === eskiT))
-        tDosya.value = eskiT;
+if (mDosya && !mDosya.value && mDosya.options.length > 1) {
+    mDosya.selectedIndex = 1;
+}
 
-    if ([...mDosya.options].some(o => o.value === eskiM))
-        mDosya.value = eskiM;
+if ([...tDosya.options].some(o => o.value === eskiT)) {
+    tDosya.value = eskiT;
+}
+
+if ([...mDosya.options].some(o => o.value === eskiM)) {
+    mDosya.value = eskiM;
+}
 }
 
 /* TEBLİGAT */
