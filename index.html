@@ -1,5 +1,6 @@
 
 
+
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -249,8 +250,12 @@ Müzekkereler
 
 <button class="tab" onclick="section('kyokArchive',this)">KYOK Arşivi</button>
 <button class="tab" onclick="section('iddianameArchive',this)">İddianame Arşivi</button>
-<button class="tab" onclick="section('resultsArchive',this)">Sonuçlanan</button>
 <button class="tab" onclick="section('statistics',this)">Aylık İstatistik</button>
+<button class="tab" onclick="section('inactivity',this)">Süre Kontrolü</button>
+<button class="tab" onclick="section('reminders',this)">🔔 Hatırlatıcı <span id="reminderBadge" class="badge red hidden">0</span></button>
+<button class="tab" onclick="section('yetkisizlik',this)">Yetkisizlik</button>
+<button class="tab" onclick="section('fezleke',this)">Fezleke</button>
+<button class="tab" onclick="section('birlesme',this)">Birleştirme</button>
 
 
 <button class="tab" onclick="section('completedMemos',this)">
@@ -593,44 +598,51 @@ Cevabı geldi olarak işaretlenen müzekkereler burada arşivlenir.
 <tbody id="iddianameArchiveTable"></tbody></table>
 </section>
 
-<section id="resultsArchive" class="card hidden">
-<h2>Sonuçlanan Dosyalar</h2>
 
-<div class="stats" style="margin:12px 0 20px">
-    <div class="stat">
-        Toplam Sonuçlanan
-        <strong id="resultTotal">0</strong>
-    </div>
-    <div class="stat">
-        KYOK
-        <strong id="resultKyok">0</strong>
-    </div>
-    <div class="stat">
-        İddianame
-        <strong id="resultIddianame">0</strong>
-    </div>
+
+<section id="inactivity" class="card hidden">
+<h2>⏱ Süre Kontrolü</h2>
+<p class="small">Dosyanın son müzekkere işlemi esas alınır. Son müzekkere gönderim tarihinden itibaren 60 günden fazla işlem yapılmamışsa dosya burada gecikmede gösterilir. Akıbet veya tekit tarihi girildiğinde o tarih yeni müzekkere gönderim tarihi kabul edilir ve süre sıfırlanır.</p>
+<div class="stats" style="margin:12px 0 20px"><div class="stat">Gecikmede Olan Dosya<strong id="inactivityCount">0</strong></div></div>
+<input id="inactivitySearch" placeholder="Dosya no, birim veya suç ara..." oninput="renderInactivity()">
+<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Dosya No</th><th>Birim</th><th>Son İşlem</th><th>Son İşlem Tarihi</th><th>İşlemsizlik</th><th>Durum</th></tr></thead><tbody id="inactivityTable"></tbody></table></div>
+</section>
+
+
+<section id="reminders" class="card hidden">
+<h2>🔔 Dosya Hatırlatıcıları</h2>
+<p class="small">Yaklaşan tarihler burada gösterilir. Tarihe yaklaştıkça uyarı seviyesi artar; bugün ve geçmiş tarihler ayrıca belirtilir.</p>
+<div class="grid">
+<div><label>Dosya</label><select id="rDosya"></select></div>
+<div><label>Hatırlatma Tarihi</label><input id="rTarih" type="date"></div>
 </div>
+<label>Hatırlatma Notu</label>
+<textarea id="rNot" placeholder="Örn: Duruşma, rapor, karar, eksik evrak..." ></textarea>
+<button class="primary" onclick="addReminder()">Hatırlatıcı Ekle</button>
+<br><br>
+<div id="reminderAlerts"></div>
+<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Dosya</th><th>Tarih</th><th>Kalan</th><th>Not</th><th></th></tr></thead><tbody id="reminderTable"></tbody></table></div>
+</section>
 
-<input id="resultsSearch" placeholder="Dosya no, birim, suç veya karar türüne göre ara..." oninput="renderResultsArchive()">
-<button class="secondary" onclick="toggleListSort('resultsArchive')" style="margin-top:8px">
-↕ Karar tarihine göre: <span id="resultsArchiveSortLabel">Azalan</span>
-</button>
+<section id="yetkisizlik" class="card hidden">
+<h2>⚖️ Yetkisizlik Arşivi — Sonuçlanan</h2>
+<input id="yetkisizlikSearch" placeholder="Yetkisizlik dosyalarında ara..." oninput="renderDecisionSections()">
+<button class="secondary" onclick="toggleListSort('yetkisizlik')" style="margin-top:8px">↕ Tarihe göre: <span id="yetkisizlikSortLabel">Azalan</span></button>
+<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Dosya No</th><th>Birim</th><th>Suç</th><th>Durum</th><th></th></tr></thead><tbody id="yetkisizlikTable"></tbody></table></div>
+</section>
 
-<div style="overflow:auto;margin-top:12px">
-<table>
-<thead>
-<tr>
-<th>Dosya No</th>
-<th>Birim</th>
-<th>Suç</th>
-<th>Karar</th>
-<th>Karar Tarihi</th>
-<th>Son İşlem</th>
-</tr>
-</thead>
-<tbody id="resultsArchiveTable"></tbody>
-</table>
-</div>
+<section id="fezleke" class="card hidden">
+<h2>📄 Fezleke Arşivi — Sonuçlanan</h2>
+<input id="fezlekeSearch" placeholder="Fezleke dosyalarında ara..." oninput="renderDecisionSections()">
+<button class="secondary" onclick="toggleListSort('fezleke')" style="margin-top:8px">↕ Tarihe göre: <span id="fezlekeSortLabel">Azalan</span></button>
+<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Dosya No</th><th>Birim</th><th>Suç</th><th>Durum</th><th></th></tr></thead><tbody id="fezlekeTable"></tbody></table></div>
+</section>
+
+<section id="birlesme" class="card hidden">
+<h2>🔗 Birleştirme Arşivi — Sonuçlanan</h2>
+<input id="birlesmeSearch" placeholder="Birleştirme dosyalarında ara..." oninput="renderDecisionSections()">
+<button class="secondary" onclick="toggleListSort('birlesme')" style="margin-top:8px">↕ Tarihe göre: <span id="birlesmeSortLabel">Azalan</span></button>
+<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Dosya No</th><th>Birim</th><th>Suç</th><th>Durum</th><th></th></tr></thead><tbody id="birlesmeTable"></tbody></table></div>
 </section>
 
 <section id="statistics" class="card hidden">
@@ -649,6 +661,8 @@ let user=null;
 let files=[];
 let notifications=[];
 let memos=[];
+let reminders=[];
+const decisionFlagsKey="derdestDecisionFlags";
 let memoSaving = false;
 let listSortAsc = {
     files:true,
@@ -658,7 +672,10 @@ let listSortAsc = {
     completedMemos:false,
     kyok:false,
     iddianame:false,
-    resultsArchive:false
+    resultsArchive:false,
+    yetkisizlik:false,
+    fezleke:false,
+    birlesme:false
 };
 
 function toggleListSort(key){
@@ -814,7 +831,7 @@ async function logout(){
 
 function section(id,button){
 
-    ["home","files","notifications","finalizedNotifications","memos","completedMemos","kyokArchive","iddianameArchive","resultsArchive","statistics"]
+    ["home","files","notifications","finalizedNotifications","memos","completedMemos","kyokArchive","iddianameArchive","statistics","inactivity","reminders","yetkisizlik","fezleke","birlesme"]
     .forEach(x=>{
         document.getElementById(x).classList.add("hidden");
     });
@@ -865,6 +882,7 @@ async function load(){
     }
 
     memos=m.data||[];
+    reminders=getReminders();
 
     renderAll();
 }
@@ -963,6 +981,104 @@ async function addFile(){
 
 /* DOSYALAR */
 
+
+function getDecisionFlags(){
+    try{return JSON.parse(localStorage.getItem(decisionFlagsKey)||"{}");}catch(e){return {};}
+}
+async function setDecisionFlag(id,key,value){
+    if(!value) return;
+
+    const labels={
+        yetkisizlik:"Yetkisizlik",
+        fezleke:"Fezleke",
+        birlesme:"Birleştirme"
+    };
+    const label=labels[key];
+    if(!label) return;
+
+    if(!confirm(`Dosya "${label}" olarak sonuçlandırılsın mı?\n\nDosya derdest listesinden kaldırılacak ve ${label} arşivine taşınacaktır.`)){
+        renderFiles();
+        return;
+    }
+
+    const {error}=await supabaseClient
+        .from("dosyalar")
+        .update({
+            karar_turu:key,
+            karar_tarihi:today(),
+            son_islem_tarihi:today(),
+            durum:"arsiv"
+        })
+        .eq("id",id)
+        .eq("owner_id",user.id);
+
+    if(error){
+        alert("Dosya ilgili arşive taşınamadı: " + error.message);
+        renderFiles();
+        return;
+    }
+
+    await load();
+
+    const tabMap={yetkisizlik:"yetkisizlik",fezleke:"fezleke",birlesme:"birlesme"};
+    const tab=document.querySelector(`.tab[onclick=\"section('${tabMap[key]}',this)\"]`);
+    if(tab) section(tabMap[key],tab);
+}
+function isDecisionFlagged(id,key){return false;}
+function decisionButton(id,key,label){
+    return `<button type="button" class="secondary" onclick="updateFileStatus(\'${id}\',\'${key}\')">${label}</button>`;
+}
+function renderDecisionSections(){
+    const map=[
+        ["yetkisizlik","yetkisizlikTable","Yetkisizlik"],
+        ["fezleke","fezlekeTable","Fezleke"],
+        ["birlesme","birlesmeTable","Birleştirme"]
+    ];
+    map.forEach(([key,tableId,label])=>{
+        const table=document.getElementById(tableId); if(!table)return;
+        const q=(document.getElementById(key+"Search")?.value||"").toLowerCase();
+        const rows=files.filter(f=>f.durum==="arsiv" && f.karar_turu===key && (
+            (f.dosya_no||"").toLowerCase().includes(q) ||
+            (f.birim||"").toLowerCase().includes(q) ||
+            (f.suc_turu||"").toLowerCase().includes(q)
+        )).sort((a,b)=>compareDates(a,b,f=>f.son_islem_tarihi||f.karar_tarihi||f.created_at,key));
+        const sortLabel=document.getElementById(key+"SortLabel");
+        if(sortLabel) sortLabel.textContent=listSortAsc[key] ? "Artan" : "Azalan";
+        table.innerHTML=rows.length?rows.map(f=>`<tr><td><strong>${escapeHtml(f.dosya_no||"-")}</strong></td><td>${escapeHtml(f.birim||"-")}</td><td>${escapeHtml(f.suc_turu||"-")}</td><td><span class="badge red">${label}</span></td><td><span class="small">Sonuçlandı</span></td></tr>`).join(""):`<tr><td colspan="5" class="small">Bu alanda dosya yok.</td></tr>`;
+    });
+}
+function getReminders(){
+    try{return JSON.parse(localStorage.getItem("fileReminders")||"[]");}catch(e){return [];} 
+}
+function saveReminders(){localStorage.setItem("fileReminders",JSON.stringify(reminders));}
+function reminderDays(rem){return daysBetween(today(),rem.tarih);}
+function reminderBadgeClass(days){return days<0?"red":days<=1?"red":days<=3?"red":days<=7?"gray":"green";}
+function reminderText(days){if(days<0)return `${Math.abs(days)} gün gecikti`;if(days===0)return "BUGÜN";if(days===1)return "YARIN";return `${days} gün kaldı`;}
+function addReminder(){
+    const dosya=document.getElementById("rDosya")?.value||"", tarih=document.getElementById("rTarih")?.value||"", not=(document.getElementById("rNot")?.value||"").trim();
+    if(!dosya||!tarih){alert("Hatırlatıcı için dosya ve tarih seçmelisiniz.");return;}
+    reminders=getReminders();
+    reminders.push({id:Date.now().toString(),dosya_id:dosya,tarih,not});
+    saveReminders();
+    document.getElementById("rTarih").value=""; document.getElementById("rNot").value="";
+    renderReminders();
+}
+function deleteReminder(id){
+    reminders=getReminders().filter(r=>r.id!==id); saveReminders(); renderReminders();
+}
+function renderReminders(){
+    reminders=getReminders().filter(r=>r&&r.tarih&&files.some(f=>f.id===r.dosya_id)); saveReminders();
+    const select=document.getElementById("rDosya");
+    if(select){const old=select.value;select.innerHTML='<option value="">Dosya seç...</option>'+files.filter(f=>f.durum==="derdest").map(f=>`<option value="${f.id}">${escapeHtml(f.dosya_no)}</option>`).join("");if([...select.options].some(o=>o.value===old))select.value=old;}
+    const rows=[...reminders].sort((a,b)=>String(a.tarih).localeCompare(String(b.tarih)));
+    const table=document.getElementById("reminderTable"), alerts=document.getElementById("reminderAlerts"), badge=document.getElementById("reminderBadge");
+    if(!table)return;
+    const soon=rows.filter(r=>reminderDays(r)<=7);
+    if(badge){badge.textContent=soon.length;badge.classList.toggle("hidden",soon.length===0);}
+    if(alerts) alerts.innerHTML=soon.length?soon.map(r=>{const f=files.find(x=>x.id===r.dosya_id),d=reminderDays(r);return `<div class="card alert" style="margin-bottom:8px"><strong>🔔 ${escapeHtml(f?.dosya_no||"-")} — ${reminderText(d)}</strong>${r.not?`<br><span class="small">${escapeHtml(r.not)}</span>`:""}</div>`;}).join(""):"<div class=\"card success\"><strong>✅ Yaklaşan hatırlatıcı yok.</strong></div>";
+    table.innerHTML=rows.length?rows.map(r=>{const f=files.find(x=>x.id===r.dosya_id),d=reminderDays(r);return `<tr><td><strong>${escapeHtml(f?.dosya_no||"-")}</strong></td><td>${formatDate(r.tarih)}</td><td><span class="badge ${reminderBadgeClass(d)}">${reminderText(d)}</span></td><td>${escapeHtml(r.not||"-")}</td><td><button class="secondary" onclick="deleteReminder('${r.id}')">Sil</button></td></tr>`;}).join(""): `<tr><td colspan="5" class="small">Henüz hatırlatıcı eklenmedi.</td></tr>`;
+}
+
 function renderFiles(){
 
     const q=
@@ -994,23 +1110,17 @@ function renderFiles(){
     <td>${escapeHtml(f.suc_turu||"-")}</td>
 
     <td>
-        <span class="badge ${f.karar_turu==="kyok" ? "red" : f.karar_turu==="iddianame" ? "green" : "gray"}">
-            ${
-                f.karar_turu==="kyok" ? "KYOK" :
-                f.karar_turu==="iddianame" ? "İDDİANAME" :
-                "DERDEST"
-            }
-        </span>
-        <br>
-        <span class="small">${formatDate(f.karar_tarihi)}</span>
         <div style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap">
-            <button class="secondary" onclick="updateFileStatus('${f.id}','iddianame')">İddianame</button>
-            <button class="secondary" onclick="updateFileStatus('${f.id}','kyok')">KYOK</button>
+            <button type="button" class="secondary" onclick="updateFileStatus('${f.id}','iddianame')">İddianame</button>
+            <button type="button" class="secondary" onclick="updateFileStatus('${f.id}','kyok')">KYOK</button>
+            <button type="button" class="secondary" onclick="updateFileStatus('${f.id}','yetkisizlik')">Yetkisizlik</button>
+            <button type="button" class="secondary" onclick="updateFileStatus('${f.id}','fezleke')">Fezleke</button>
+            <button type="button" class="secondary" onclick="updateFileStatus('${f.id}','birlesme')">Birleştirme</button>
         </div>
     </td>
 
     <td>
-        <button class="secondary" onclick="archiveFile('${f.id}')">Arşivle</button>
+        <button type="button" class="secondary" onclick="deleteFile('${f.id}')">🗑 Sil</button>
     </td>
 
     </tr>
@@ -1023,7 +1133,10 @@ async function updateFileStatus(id,status){
 
     const labels = {
         iddianame:"İddianame verildi",
-        kyok:"KYOK verildi"
+        kyok:"KYOK verildi",
+        yetkisizlik:"Yetkisizlik kararı verildi",
+        fezleke:"Fezleke düzenlendi",
+        birlesme:"Birleştirme kararı verildi"
     };
 
     if(!labels[status]) return;
@@ -1036,6 +1149,7 @@ async function updateFileStatus(id,status){
         .update({
             karar_turu:status,
             karar_tarihi:today(),
+            son_islem_tarihi:today(),
             durum:"arsiv"
         })
         .eq("id",id)
@@ -1071,6 +1185,47 @@ async function archiveFile(id){
     await load();
 }
 
+
+async function deleteFile(id){
+    const f=files.find(x=>x.id===id);
+    if(!f) return;
+
+    // Silme işlemi için uygulamaya girişte kullanılan hesap şifresini yeniden doğrula.
+    const password=prompt(`"${f.dosya_no||"Bu dosya"}" dosyasını kalıcı olarak silmek için\nuygulama giriş şifrenizi girin:`);
+    if(password===null) return;
+    if(!password){
+        alert("Şifre girilmedi. Dosya silinmedi.");
+        return;
+    }
+
+    const {error:authError}=await supabaseClient.auth.signInWithPassword({
+        email:user?.email,
+        password
+    });
+
+    if(authError){
+        alert("Şifre hatalı. Dosya silinmedi.");
+        return;
+    }
+
+    if(!confirm(`"${f.dosya_no||"Bu dosya"}" dosyası kalıcı olarak silinsin mi?\n\nBu işlem geri alınamaz.`)) return;
+
+    const {error}=await supabaseClient
+        .from("dosyalar")
+        .delete()
+        .eq("id",id)
+        .eq("owner_id",user.id);
+
+    if(error){
+        alert("Dosya silinemedi: " + error.message);
+        return;
+    }
+
+    // Dosyaya bağlı yerel hatırlatıcıları da temizle.
+    reminders = getReminders().filter(r=>r.dosya_id!==id);
+    saveReminders();
+    await load();
+}
 
 /* ARŞİV */
 
@@ -1605,70 +1760,29 @@ function renderCompletedMemos(){
 
 
 async function memoAskOutcome(id){
-
-    if(!confirm("Akıbet soruldu olarak işaretlensin mi?"))
-        return;
-
-    const state = {
-        akibet_soruldu:true,
-        akibet_sorulma_tarihi:today(),
-        tekit_edildi:false,
-        tekit_tarihi:null,
-        tekit_son_gunu:addDays(today(),15)
-    };
-
-    const {error}=await supabaseClient
-        .from("muzekkereler")
-        .update(state)
-        .eq("id",id)
-        .eq("owner_id",user.id);
-
-    if(error){
-        setMemoLocalState(id, state);
-        console.warn("Akıbet alanları Supabase'de yok; yerel takip kullanılıyor:", error.message);
-    }else{
-        clearMemoLocalState(id);
-    }
-
-    alert("Akıbet soruldu olarak işaretlendi.");
+    const memo=getMemoState(memos.find(x=>x.id===id)||{id});
+    const tarih=requestDate("Akıbet sorulma tarihini girin.",memo.gonderim_tarihi||today());
+    if(!tarih)return;
+    if(!confirm("Akıbet tarihi "+formatDate(tarih)+" olarak kaydedilsin mi?\n\nBu tarih yeni müzekkere gönderim tarihi kabul edilecek ve süre sıfırlanacaktır."))return;
+    const state={gonderim_tarihi:tarih,sure_son_gunu:addDays(tarih,15),akibet_tarihi:addDays(tarih,15),akibet_soruldu:true,akibet_sorulma_tarihi:tarih,tekit_edildi:false,tekit_tarihi:null,tekit_son_gunu:addDays(tarih,15)};
+    const {error}=await supabaseClient.from("muzekkereler").update(state).eq("id",id).eq("owner_id",user.id);
+    if(error){setMemoLocalState(id,state);console.warn("Akıbet alanları Supabase'de güncellenemedi; yerel takip kullanılıyor:",error.message);}else clearMemoLocalState(id);
+    alert("Akıbet kaydedildi. Yeni işlem tarihi: "+formatDate(tarih)+". İşlemsizlik süresi sıfırlandı.");
     await load();
 }
 
 
 async function memoTekit(id){
-
-    const memo = getMemoState(memos.find(x => x.id === id) || {id});
-
-    const tekitGeldi =
-        (memo.tekit_son_gunu || addDays(memo.akibet_sorulma_tarihi,15)) &&
-        today() >= (memo.tekit_son_gunu || addDays(memo.akibet_sorulma_tarihi,15));
-
-    if(!tekitGeldi){
-        alert("Tekit için akıbet sorulmasından sonra 15 günlük sürenin dolması bekleniyor.");
-        return;
-    }
-
-    if(!confirm("Tekit edildi olarak işaretlensin mi?"))
-        return;
-
-    const state = {
-        tekit_edildi:true,
-        tekit_tarihi:today()
-    };
-
-    const {error}=await supabaseClient
-        .from("muzekkereler")
-        .update(state)
-        .eq("id",id)
-        .eq("owner_id",user.id);
-
-    if(error){
-        setMemoLocalState(id, state);
-        console.warn("Tekit alanları Supabase'de yok; yerel takip kullanılıyor:", error.message);
-    }else{
-        clearMemoLocalState(id);
-    }
-
+    const memo=getMemoState(memos.find(x=>x.id===id)||{id});
+    const tekitGeldi=(memo.tekit_son_gunu||addDays(memo.akibet_sorulma_tarihi,15))&&today()>=(memo.tekit_son_gunu||addDays(memo.akibet_sorulma_tarihi,15));
+    if(!tekitGeldi){alert("Tekit için akıbet sorulmasından sonra 15 günlük sürenin dolması bekleniyor.");return;}
+    const tarih=requestDate("Tekit tarihini girin.",today());
+    if(!tarih)return;
+    if(!confirm("Tekit tarihi "+formatDate(tarih)+" olarak kaydedilsin mi?\n\nBu tarih yeni müzekkere gönderim tarihi kabul edilecek ve işlemsizlik süresi yeniden başlayacaktır."))return;
+    const state={gonderim_tarihi:tarih,sure_son_gunu:addDays(tarih,15),akibet_tarihi:addDays(tarih,15),tekit_edildi:true,tekit_tarihi:tarih,tekit_son_gunu:addDays(tarih,15)};
+    const {error}=await supabaseClient.from("muzekkereler").update(state).eq("id",id).eq("owner_id",user.id);
+    if(error){setMemoLocalState(id,state);console.warn("Tekit alanları Supabase'de güncellenemedi; yerel takip kullanılıyor:",error.message);}else clearMemoLocalState(id);
+    alert("Tekit kaydedildi. Yeni işlem tarihi: "+formatDate(tarih)+". İşlemsizlik süresi sıfırlandı.");
     await load();
 }
 
@@ -1770,6 +1884,15 @@ function renderDashboard(){
         </div>
         `;
 
+    }
+
+    const upcomingReminders = getReminders().filter(r => r.tarih && reminderDays(r) <= 7);
+    if(upcomingReminders.length){
+        html += upcomingReminders.map(r=>{
+            const f=files.find(x=>x.id===r.dosya_id);
+            const d=reminderDays(r);
+            return `<div class="card ${d<=3 ? "alert" : "success"}" style="margin-bottom:8px"><strong>🔔 ${escapeHtml(f?.dosya_no||"-")} — ${reminderText(d)}</strong>${r.not ? `<br><span class="small">${escapeHtml(r.not)}</span>` : ""}</div>`;
+        }).join("");
     }
 
     if(!html){
@@ -1977,19 +2100,55 @@ function renderMonthlyStats(){
 
 document.addEventListener("change", function(e){ if(e.target && e.target.id==="statsMonth") renderMonthlyStats(); });
 
+
+function daysBetween(from,to){
+    if(!from) return null;
+    const a=new Date(from+"T00:00:00"), b=new Date(to+"T00:00:00");
+    if(Number.isNaN(a.getTime())||Number.isNaN(b.getTime())) return null;
+    return Math.floor((b-a)/86400000);
+}
+function getLastMemoForFile(fileId){
+    return memos.map(getMemoState)
+        .filter(m=>m.dosya_id===fileId&&m.gonderim_tarihi)
+        .sort((a,b)=>String(b.gonderim_tarihi).localeCompare(String(a.gonderim_tarihi)))[0]||null;
+}
+function renderInactivity(){
+    const table=document.getElementById("inactivityTable"), count=document.getElementById("inactivityCount");
+    if(!table)return;
+    const q=(document.getElementById("inactivitySearch")?.value||"").toLowerCase();
+    const rows=files.filter(f=>f.durum==="derdest").map(f=>{
+        const memo=getLastMemoForFile(f.id), lastDate=memo?.gonderim_tarihi||null;
+        return {f,memo,lastDate,days:lastDate?daysBetween(lastDate,today()):null};
+    }).filter(x=>x.lastDate&&x.days>60).filter(x=>{
+        const text=[x.f.dosya_no,x.f.birim,x.f.suc_turu].map(v=>String(v||"").toLowerCase()).join(" ");
+        return !q||text.includes(q);
+    }).sort((a,b)=>b.days-a.days);
+    if(count)count.textContent=rows.length;
+    table.innerHTML=rows.length?rows.map(x=>`<tr><td><strong>${escapeHtml(x.f.dosya_no||"-")}</strong></td><td>${escapeHtml(x.f.birim||"-")}</td><td>${x.memo?.akibet_soruldu?"Akıbet":x.memo?.tekit_edildi?"Tekit":"Müzekkere"}</td><td>${formatDate(x.lastDate)}</td><td><span class="badge red">${x.days} gün</span></td><td><span class="badge red">60 GÜNÜ AŞTI</span></td></tr>`).join(""):`<tr><td colspan="6" class="small">60 günü aşan işlemsiz dosya bulunmuyor.</td></tr>`;
+}
+function requestDate(title,defaultDate){
+    const value=prompt(title+"\n\nTarih formatı: GG.AA.YYYY\nÖrnek: 12.10.2026",defaultDate?formatDate(defaultDate):formatDate(today()));
+    if(value===null)return null;
+    const m=value.trim().match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/);
+    if(!m){alert("Geçerli bir tarih girin. Örnek: 12.10.2026");return requestDate(title,defaultDate);}
+    const day=m[1].padStart(2,"0"),month=m[2].padStart(2,"0"),year=m[3],iso=`${year}-${month}-${day}`,d=new Date(iso+"T00:00:00");
+    if(Number.isNaN(d.getTime())||d.getFullYear()!=Number(year)||d.getMonth()+1!=Number(month)||d.getDate()!=Number(day)){alert("Geçersiz tarih.");return requestDate(title,defaultDate);}
+    return iso;
+}
 function renderAll(){
 
     fillSelects();
     renderFiles();
     renderStatusArchives();
-    renderResultsArchive();
     renderNotifications();
     renderFinalizedNotifications();
     renderMemos();
     renderCompletedMemos();
     renderDashboard();
     renderMonthlyStats();
-
+    renderInactivity();
+    renderReminders();
+    renderDecisionSections();
 }
 
 
@@ -2015,6 +2174,8 @@ function renderAll(){
     }
 
 })();
+
+setInterval(()=>{ if(user){ renderReminders(); renderDashboard(); } },60000);
 
 </script>
 
