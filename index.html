@@ -5,6 +5,7 @@
 
 
 
+
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -383,6 +384,10 @@ Vazgeç
 
 <!-- TEBLİGAT -->
 
+
+<!-- HAFTALIK MAZBATA UYARISI -->
+<div id="homeMazbataReminder" class="hidden" style="margin-top:14px"></div>
+
 <section id="notifications" class="card hidden">
 
 <h2>Tebligat Takibi</h2>
@@ -392,8 +397,7 @@ Vazgeç
 </button>
 
 <p class="small">
-Tebliğ tarihi girildiğinde 14 günlük süre takip edilir.
-Son gün hafta sonu veya resmi tatil ise ilk iş gününe uzatılır.
+Tebligatı çıkardığınız anda yalnızca gönderim tarihi kaydedilir. Mazbata gelince gerçek tebliğ tarihi girilir; bila gelirse ayrı olarak işaretlenir. Mazbata 7 gün veya daha uzun süre bekliyorsa ana ekranda haftalık takip uyarısı gösterilir. Elektronik tebligatta teslim tarihi üzerinden tebliğ tarihi otomatik hesaplanır.
 </p>
 
 <div class="grid">
@@ -437,13 +441,21 @@ placeholder="Dosya numarası ara..." oninput="filterNotificationFilePicker()">
 </div>
 
 <div>
-<label>Tebliğ Tarihi</label>
+<label>Tebligat Şekli</label>
+<select id="tTebligatSekli" onchange="renderNotifications()">
+<option value="normal">Normal Tebligat</option>
+<option value="elektronik">Elektronik Tebligat</option>
+</select>
+</div>
+
+<div>
+<label>Gönderim Tarihi</label>
 <input id="tarih" type="date">
 </div>
 
 </div>
 
-<button class="primary" onclick="addNotification()">
+<button type="button" class="primary" onclick="addNotification()">
 Tebligat Ekle
 </button>
 
@@ -456,11 +468,11 @@ Tebligat Ekle
 <thead>
 <tr>
 <th>Dosya</th>
-<th>Tebliğ</th>
-<th>Süre Sonu</th>
+<th>Gönderim</th>
+<th>Durum / Tebliğ</th>
+<th>Süre Bitişi</th>
 <th>Kesinleştirme</th>
-<th>Durum</th>
-<th></th>
+<th>İşlem</th>
 </tr>
 </thead>
 
@@ -476,8 +488,9 @@ Tebligat Ekle
 <thead>
 <tr>
 <th>Dosya</th>
+<th>Gönderim</th>
 <th>Tebliğ</th>
-<th>Süre Sonu</th>
+<th>Süre Bitişi</th>
 <th>Kesinleştirme Tarihi</th>
 <th>Durum</th>
 </tr>
@@ -1444,7 +1457,7 @@ async function deleteFile(id){
     if(!f) return;
 
     // Silme işlemi için uygulamaya girişte kullanılan hesap şifresini yeniden doğrula.
-    const password=prompt(`"${f.dosya_no||"Bu dosya"}" dosyasını kalıcı olarak silmek için\nuygulama giriş şifrenizi girin:`);
+    const password=prompt(`"${f.dosya_no||"Bu dosya"}" dosyasını ve dosyaya bağlı TÜM kayıtları kalıcı olarak silmek için\nuygulama giriş şifrenizi girin:`);
     if(password===null) return;
     if(!password){
         alert("Şifre girilmedi. Dosya silinmedi.");
@@ -1461,8 +1474,38 @@ async function deleteFile(id){
         return;
     }
 
-    if(!confirm(`"${f.dosya_no||"Bu dosya"}" dosyası kalıcı olarak silinsin mi?\n\nBu işlem geri alınamaz.`)) return;
+    if(!confirm(`"${f.dosya_no||"Bu dosya"}" dosyası kalıcı olarak silinsin mi?\n\nAktif ve kesinleşmiş tebligatlar, müzekkereler ve dosyaya bağlı diğer kayıtlar da silinecektir.\n\nBU İŞLEM GERİ ALINAMAZ.`)) return;
 
+    /*
+      DOSYA TAM SİLME
+      Önce dosyaya bağlı kayıtlar temizlenir, en son dosyanın kendisi silinir.
+      Hata olursa dosya silme aşamasına geçilmez.
+    */
+    const childTables = [
+        "tebligatlar",
+        "muzekkereler"
+    ];
+
+    for(const table of childTables){
+        const {error:childError}=await supabaseClient
+            .from(table)
+            .delete()
+            .eq("dosya_id",id)
+            .eq("owner_id",user.id);
+
+        if(childError){
+            // Bazı eski projelerde tablo/kolon bulunmayabilir.
+            // Böyle bir durumda diğer kayıtları riske atmadan işlemi durdur.
+            alert(`${table} kayıtları silinemedi:\n${childError.message}\n\nDosya silinmedi.`);
+            return;
+        }
+    }
+
+    // Dosyaya bağlı yerel hatırlatıcıları da temizle.
+    reminders = getReminders().filter(r=>r.dosya_id!==id);
+    saveReminders();
+
+    // En son ana dosya kaydını sil.
     const {error}=await supabaseClient
         .from("dosyalar")
         .delete()
@@ -1474,9 +1517,7 @@ async function deleteFile(id){
         return;
     }
 
-    // Dosyaya bağlı yerel hatırlatıcıları da temizle.
-    reminders = getReminders().filter(r=>r.dosya_id!==id);
-    saveReminders();
+    alert(`"${f.dosya_no||"Dosya"}" ve dosyaya bağlı kayıtlar tamamen silindi.`);
     await load();
 }
 
@@ -1651,6 +1692,14 @@ function refreshNotificationFileList(){
 }
 
 /* TEBLİGAT TÜRLERİ */
+/* Bildirim ekranındaki bir işlemde oluşan JS hatasının tüm butonları
+   kullanılmaz hale getirmesini önlemek için global hata kaydı. */
+window.addEventListener("error", function(e){
+    if(e && e.error) console.error("Katip Tebligat Hatası:", e.error);
+});
+window.addEventListener("unhandledrejection", function(e){
+    console.error("Katip Tebligat Promise Hatası:", e.reason);
+});
 const notificationTypesKey = "tebligatTurleri";
 function getNotificationTypes(){
     try{return JSON.parse(localStorage.getItem(notificationTypesKey)||"{}");}catch(e){return {};}
@@ -1662,96 +1711,304 @@ function isKamuErtelemeNotification(n){return getNotificationType(n.id)==="kamu_
 
 /* TEBLİGAT */
 
+const notificationMetaKey = "katip_tebligat_meta_v2";
+function getNotificationMetaMap(){
+    try{return JSON.parse(localStorage.getItem(notificationMetaKey)||"{}");}catch(e){return {};}
+}
+function saveNotificationMetaMap(map){localStorage.setItem(notificationMetaKey,JSON.stringify(map));}
+function getNotificationMeta(id){return getNotificationMetaMap()[id]||{};}
+function setNotificationMeta(id,patch){
+    const map=getNotificationMetaMap();
+    map[id]={...(map[id]||{}),...patch,updated_at:new Date().toISOString()};
+    saveNotificationMetaMap(map);
+}
+function notificationMeta(n){
+    const m=getNotificationMeta(n.id);
+    return {
+        sekli:m.sekli || "normal",
+        gonderim_tarihi:m.gonderim_tarihi || n.gonderim_tarihi || n.teblig_tarihi || "",
+        teslim_tarihi:m.teslim_tarihi || "",
+        bila_tarihi:m.bila_tarihi || "",
+        yeniden_teblig_tarihi:m.yeniden_teblig_tarihi || "",
+        yeniden_tebligat_bila_sonrasi:!!m.yeniden_tebligat_bila_sonrasi,
+        durum:m.durum || (n.durum==="kesinlesti" ? "kesinlesti" : (n.teblig_tarihi ? "teblig_edildi" : "bekliyor"))
+    };
+}
+
+/* TEBLİGAT */
 async function addNotification(){
+    const dosya=document.getElementById("tDosya")?.value;
+    const gonderim=document.getElementById("tarih")?.value;
+    const tebligatTuru=document.getElementById("tTebligatTuru")?.value || "genel";
+    const sekli=document.getElementById("tTebligatSekli")?.value || "normal";
 
-    const dosya =
-        document.getElementById("tDosya").value;
-
-    const tarih =
-        document.getElementById("tarih").value;
-
-    const tebligatTuru =
-        document.getElementById("tTebligatTuru")?.value || "genel";
-
-    if(!dosya || !tarih){
-        alert("Tebligat için dosya ve tebliğ tarihi seçmelisiniz.");
+    if(!dosya || !gonderim){
+        alert("Tebligat için dosya ve gönderim tarihi seçmelisiniz.");
         return;
     }
 
-    const {data,error}=await supabaseClient
+    let {data,error}=await supabaseClient
         .from("tebligatlar")
-        .insert({
-            owner_id:user.id,
-            dosya_id:dosya,
-            teblig_tarihi:tarih
-        });
+        .insert({owner_id:user.id,dosya_id:dosya,teblig_tarihi:null})
+        .select()
+        .single();
+
+    /* Eski veritabanlarında teblig_tarihi NOT NULL ise, gönderim tarihini
+       teknik olarak kaydedip gerçek tebliğ tarihini yerel iş akışında beklet. */
+    if(error && error.code==="23502"){
+        const retry=await supabaseClient.from("tebligatlar")
+            .insert({owner_id:user.id,dosya_id:dosya,teblig_tarihi:gonderim})
+            .select().single();
+        data=retry.data; error=retry.error;
+    }
 
     if(error){
         alert("Tebligat kaydedilemedi: " + error.message);
         return;
     }
 
-    if(data && data.id){
-        setNotificationType(data.id, tebligatTuru);
-    } else {
-        /* Supabase insert cevabı data kapalıysa son kaydı bularak türü ilişkilendir. */
-        const latest = await supabaseClient.from("tebligatlar").select("id").eq("owner_id",user.id).eq("dosya_id",dosya).eq("teblig_tarihi",tarih).order("created_at",{ascending:false}).limit(1).maybeSingle();
-        if(latest.data?.id) setNotificationType(latest.data.id, tebligatTuru);
-    }
+    const id=data?.id;
+    if(!id){alert("Tebligat kaydedildi ancak kayıt numarası alınamadı.");return;}
 
-    // Kamu Davasının Ertelenmesi dosyaları derdest kaldığından aynı dosyaya
-    // gerektiğinde ayrıca yeniden tebligat yapılabilir. Hazırlık tebligatında
-    // tali karar fişi oluşturulmaz; tali fiş yalnızca kamu tebligatı kesinleşince oluşur.
-    alert(tebligatTuru==="kamu_davasinin_ertelenmesi" ? "Kamu davasının ertelenmesi tebligatı ayrı takibe alındı." : "Tebligat takibe alındı.");
+    setNotificationType(id,tebligatTuru);
+    setNotificationMeta(id,{sekli,gonderim_tarihi:gonderim,durum:"bekliyor",teslim_tarihi:"",bila_tarihi:""});
+    await supabaseClient.from("tebligatlar").update({durum:"bekliyor"}).eq("id",id).eq("owner_id",user.id);
+
+    document.getElementById("tarih").value="";
+    alert("Tebligat gönderildi. Mazbata bekleme takibine alındı.");
     await load();
 }
 
-
-
-/* Tebligatın kesinleştirilebileceği tarihi güvenli biçimde hesapla.
-   Öncelik: kayıtlı kesinleştirme tarihi; yoksa süre sonu + mevcut hesap. */
-
-let notificationSortAsc = true;
-
-function sortNotificationsByRemaining(a,b){
-    const da = notificationKesinlestirmeTarihi(a);
-    const db = notificationKesinlestirmeTarihi(b);
-
-    /* Tarihi olmayan kayıtlar en alta */
-    if(!da && !db) return 0;
-    if(!da) return 1;
-    if(!db) return -1;
-
-    const cmp = da.localeCompare(db);
-    return notificationSortAsc ? cmp : -cmp;
+function notificationTebligTarihi(n){
+    const m=notificationMeta(n);
+    if(m.durum==="bekliyor" || m.durum==="bila") return "";
+    if(m.sekli==="elektronik" && m.teslim_tarihi) return addDays(m.teslim_tarihi,5);
+    return n.teblig_tarihi || "";
 }
 
-function toggleNotificationSort(){
-    toggleListSort("notifications");
-    const label = document.getElementById("notificationSortLabel");
-    if(label) label.textContent = listSortAsc.notifications ? "Artan" : "Azalan";
+function notificationSureSonu(n){
+    const m=notificationMeta(n);
+    /* Gönderim kaydı veya eski teblig_tarihi alanı tek başına süre başlatmaz.
+       Gerçek mazbata tarihi girilip durum "teblig_edildi" yapılmadan
+       kesinleşme/süre tarihi kesinlikle gösterilmez. */
+    if(m.durum!=="teblig_edildi") return "";
+    const t=notificationTebligTarihi(n);
+    if(!t) return "";
+    const kayitli=n.uzatilmis_son_gun || n.hesaplanan_son_gun || n.sure_son_gunu;
+    return kayitli || adjustToNextWorkday(addDays(t,14));
 }
 
+function adjustToNextWorkday(dateStr){
+    if(!dateStr)return null;
+    let d=new Date(dateStr+"T00:00:00");
+    if(Number.isNaN(d.getTime()))return null;
+    while(d.getDay()===0 || d.getDay()===6)d.setDate(d.getDate()+1);
+    return d.toISOString().slice(0,10);
+}
 
 function notificationKesinlestirmeTarihi(n){
+    const m=notificationMeta(n);
+    /* Önce durum kontrol edilir. Eski/veritabanında kalmış bir
+       kesinlestirme_tarihi, yeni/mazbata-bekleyen kaydı etkileyemez. */
+    if(m.durum!=="teblig_edildi" || !notificationTebligTarihi(n)) return null;
     if(n.kesinlestirme_tarihi) return n.kesinlestirme_tarihi;
-
-    const sonGun =
-        n.uzatilmis_son_gun ||
-        n.hesaplanan_son_gun ||
-        n.sure_son_gunu ||
-        addDays(n.teblig_tarihi,14);
-
-    if(!sonGun) return null;
-
-    /* Eski kayıtlarda kesinleştirme tarihi yoksa en azından süre sonunu bekle. */
-    return sonGun;
+    const sonGun=notificationSureSonu(n);
+    return sonGun ? addDays(sonGun,1) : null;
 }
-
 function notificationCanBeFinalized(n){
-    const tarih = notificationKesinlestirmeTarihi(n);
-    return !!tarih && today() >= tarih;
+    const tarih=notificationKesinlestirmeTarihi(n);
+    return !!tarih && today()>=tarih;
 }
+
+function notificationStatusLabel(n){
+    const m=notificationMeta(n);
+    if(m.durum==="kesinlesti" || n.durum==="kesinlesti") return '<span class="badge green">KESİNLEŞTİ</span>';
+    /* Bila sonrası yeni tebligat çıkarıldıysa artık aktif durum kırmızı
+       "BİLA GELDİ" değil, yeşil "BİLA YENİDEN ÇIKARILDI" olmalıdır. */
+    if(m.yeniden_teblig_tarihi || m.yeniden_tebligat_bila_sonrasi){
+        return '<span class="badge green">↻ BİLA YENİDEN ÇIKARILDI</span>';
+    }
+    if(m.durum==="bila") return '<span class="badge red">BİLA GELDİ</span>';
+    if(m.durum==="teblig_edildi"){
+        const t=notificationTebligTarihi(n);
+        const kesin=notificationKesinlestirmeTarihi(n);
+        return '<span class="badge green">TEBLİĞ EDİLDİ</span><br><span class="small">Tebliğ: '+formatDate(t)+'</span>' +
+               (kesin ? '<br><span class="small">Kesinleşme: '+formatDate(kesin)+'</span>' : '');
+    }
+    return '<span class="badge gray">MAZBATA BEKLENİYOR</span>';
+}
+
+async function markNotificationDelivered(id){
+    const n=notifications.find(x=>x.id===id);
+    if(!n)return;
+
+    const m=notificationMeta(n);
+    let teslimTarihi="";
+    let tebligTarihi="";
+
+    if(m.sekli==="elektronik"){
+        const entered=prompt(
+            "Elektronik tebligat TESLİM tarihini girin (GG.AA.YYYY):",
+            m.teslim_tarihi ? formatDate(m.teslim_tarihi) : ""
+        );
+        if(entered===null)return;
+
+        teslimTarihi=parseDatePrompt(entered);
+        if(!teslimTarihi){
+            alert("Geçerli bir teslim tarihi girin.");
+            return;
+        }
+
+        /* Elektronik tebligatta teslimden 5 gün sonrası tebliğ tarihi. */
+        tebligTarihi=addDays(teslimTarihi,5);
+    }else{
+        const entered=prompt(
+            "Mazbatadaki GERÇEK TEBLİĞ tarihini girin (GG.AA.YYYY):",
+            ""
+        );
+        if(entered===null)return;
+
+        tebligTarihi=parseDatePrompt(entered);
+        if(!tebligTarihi){
+            alert("Geçerli bir tebliğ tarihi girin.");
+            return;
+        }
+    }
+
+    /* DB'deki durum alanı güvenli olarak bekliyor tutulur.
+       Gerçek iş akışı notification meta alanında tutulur. */
+    const updatePayload={teblig_tarihi:tebligTarihi,durum:"bekliyor"};
+    const {error}=await supabaseClient
+        .from("tebligatlar")
+        .update(updatePayload)
+        .eq("id",id)
+        .eq("owner_id",user.id);
+
+    if(error){
+        alert("Tebliğ tarihi kaydedilemedi: " + error.message);
+        return;
+    }
+
+    setNotificationMeta(id,{
+        durum:"teblig_edildi",
+        teslim_tarihi:teslimTarihi,
+        bila_tarihi:m.bila_tarihi||"",
+        yeniden_teblig_tarihi:m.yeniden_teblig_tarihi||"",
+        yeniden_tebligat_bila_sonrasi:!!m.yeniden_tebligat_bila_sonrasi
+    });
+
+    /* Kullanıcı elektronik tebligat kaydından sonra butona tekrar bastığında
+       eski tarih/ekran state'i yüzünden işlem kilitlenmesin. */
+    renderNotifications();
+    alert(
+        m.sekli==="elektronik"
+            ? "Elektronik tebligat teslim tarihi kaydedildi. Tebliğ tarihi 5 gün sonrası olarak hesaplandı: " + formatDate(tebligTarihi)
+            : "Gerçek tebliğ tarihi kaydedildi. Süre takibi başladı."
+    );
+    await load();
+}
+async function markNotificationBila(id){
+    const n=notifications.find(x=>x.id===id);
+    if(!n)return;
+
+    const entered=prompt("Bila gelen mazbatanın tarihini girin (GG.AA.YYYY):","");
+    if(entered===null)return;
+
+    const bila=parseDatePrompt(entered);
+    if(!bila){
+        alert("Geçerli bir tarih girin.");
+        return;
+    }
+
+    const {error}=await supabaseClient
+        .from("tebligatlar")
+        .update({durum:"bila"})
+        .eq("id",id)
+        .eq("owner_id",user.id);
+
+    if(error){
+        alert("Bila durumu kaydedilemedi: " + error.message);
+        return;
+    }
+
+    setNotificationMeta(id,{
+        durum:"bila",
+        bila_tarihi:bila,
+        yeniden_teblig_tarihi:"",
+        yeniden_tebligat_bila_sonrasi:false
+    });
+
+    await load();
+}
+
+async function reissueNotification(id){
+    const n=notifications.find(x=>x.id===id);
+    if(!n)return;
+
+    const m=notificationMeta(n);
+    const entered=prompt("Yeni tebligatın gönderim tarihini girin (GG.AA.YYYY):","");
+    if(entered===null)return;
+
+    const tarih=parseDatePrompt(entered);
+    if(!tarih){
+        alert("Geçerli bir tarih girin.");
+        return;
+    }
+
+    /*
+     * Yeni tebligat ayrı kayıt açmadan aynı kayıtta devam eder.
+     * Gönderim tarihi yeniden başlar; gerçek tebliğ tarihi ise yeniden
+     * mazbata/teslim gelene kadar BOŞ kabul edilir.
+     *
+     * Bazı eski DB şemalarında teblig_tarihi NOT NULL olduğu için
+     * gönderim tarihini teknik olarak kolonda tutuyoruz; UI'da meta.durum
+     * "bekliyor" olduğu için bu tarih kesinlikle tebliğ tarihi sayılmıyor.
+     */
+    const {error}=await supabaseClient
+        .from("tebligatlar")
+        .update({
+            teblig_tarihi:tarih,
+            durum:"bekliyor"
+        })
+        .eq("id",id)
+        .eq("owner_id",user.id);
+
+    if(error){
+        alert("Yeni tebligat kaydedilemedi: " + error.message);
+        return;
+    }
+
+    setNotificationMeta(id,{
+        durum:"bekliyor",
+        gonderim_tarihi:tarih,
+        yeniden_teblig_tarihi:tarih,
+        yeniden_tebligat_bila_sonrasi:true,
+        teslim_tarihi:"",
+        /* Bila geçmişi kaybolmasın; sadece aktif durum yeşile dönsün. */
+        bila_tarihi:m.bila_tarihi||""
+    });
+
+    alert("Bila sonrası yeni tebligat çıkarıldı. Durum yeşil olarak 'BİLA YENİDEN ÇIKARILDI' görünecek.");
+    await load();
+}
+function parseDatePrompt(v){
+    const x=String(v||"").trim().replace(/\//g,".");
+    const m=x.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if(!m)return "";
+    const d=String(m[1]).padStart(2,"0"), mo=String(m[2]).padStart(2,"0"), y=m[3];
+    const iso=`${y}-${mo}-${d}`;
+    const dt=new Date(iso+"T00:00:00");
+    if(Number.isNaN(dt.getTime()) || dt.getFullYear()!=Number(y) || dt.getMonth()+1!=Number(mo) || dt.getDate()!=Number(d))return "";
+    return iso;
+}
+
+let notificationSortAsc=true;
+function sortNotificationsByRemaining(a,b){
+    const da=notificationKesinlestirmeTarihi(a), db=notificationKesinlestirmeTarihi(b);
+    if(!da&&!db)return 0;if(!da)return 1;if(!db)return -1;
+    const cmp=da.localeCompare(db);return notificationSortAsc?cmp:-cmp;
+}
+function toggleNotificationSort(){toggleListSort("notifications");const label=document.getElementById("notificationSortLabel");if(label)label.textContent=listSortAsc.notifications?"Artan":"Azalan";}
 
 
 window.notificationFilePickerItems = window.notificationFilePickerItems || [];
@@ -1808,64 +2065,165 @@ document.addEventListener("click",function(e){
     }
 });
 
-function renderNotifications(){
 
-    const selectedType = document.getElementById("tTebligatTuru")?.value || "genel";
-    const q = (document.getElementById("tDosyaSearch")?.value || "").toLowerCase();
+/* HAFTALIK MAZBATA UYARISI */
+const MAZBATA_UYARI_GUNU = 7;
 
-    const matches = n => {
-        if(getNotificationType(n.id) !== selectedType) return false;
-        const dosyaNo = files.find(f => f.id === n.dosya_id)?.dosya_no || "";
-        return dosyaNo.toLowerCase().includes(q) ||
-               String(n.teblig_tarihi || "").includes(q) ||
-               String(n.kesinlestirme_tarihi || "").includes(q);
-    };
-
-    const activeNotifications = notifications
-        .filter(n => n.durum !== "kesinlesti" && matches(n))
-        .sort((a,b)=>compareDates(a,b,notificationKesinlestirmeTarihi,"notifications"));
-
-    const finalized = notifications
-        .filter(n => n.durum === "kesinlesti" && matches(n))
-        .sort((a,b)=>compareDates(a,b,n=>n.kesinlestirme_tarihi,"notifications"));
-
-    const activeTable = document.getElementById("notificationTable");
-    const finalizedTable = document.getElementById("finalizedNotificationTable");
-    if(!activeTable || !finalizedTable) return;
-
-    activeTable.innerHTML = activeNotifications.length ? activeNotifications.map(n=>{
-        const sonGun = n.uzatilmis_son_gun || n.hesaplanan_son_gun || n.sure_son_gunu || addDays(n.teblig_tarihi,14);
-        return `
-        <tr>
-            <td>${escapeHtml(files.find(f => f.id === n.dosya_id)?.dosya_no || "-")}</td>
-            <td>${formatDate(n.teblig_tarihi)}</td>
-            <td>${formatDate(sonGun)}</td>
-            <td>${formatDate(n.kesinlestirme_tarihi)}</td>
-            <td>${n.kesinlestirme_tarihi && today()>=n.kesinlestirme_tarihi
-                ? '<span class="badge red">KESİNLEŞTİRİLEBİLİR</span>'
-                : '<span class="badge gray">BEKLİYOR</span>'}</td>
-            <td>${notificationCanBeFinalized(n)
-                ? `<button class="primary" onclick="finalizeNotification('${n.id}')">Kesinleştir</button>`
-                : `<button class="secondary" disabled title="Tebligatın kesinleşme süresi henüz dolmadı.">Süresi Dolmadı</button>`}</td>
-        </tr>`;
-    }).join("") : `<tr><td colspan="6" class="small">Seçilen alanda aktif tebligat yok.</td></tr>`;
-
-    finalizedTable.innerHTML = finalized.length ? finalized.map(n=>{
-        const sonGun = n.uzatilmis_son_gun || n.hesaplanan_son_gun || n.sure_son_gunu || addDays(n.teblig_tarihi,14);
-        return `
-        <tr>
-            <td>${escapeHtml(files.find(f => f.id === n.dosya_id)?.dosya_no || "-")}</td>
-            <td>${formatDate(n.teblig_tarihi)}</td>
-            <td>${formatDate(sonGun)}</td>
-            <td>${formatDate(n.kesinlestirme_tarihi)}</td>
-            <td><span class="badge green">KESİNLEŞTİ</span></td>
-        </tr>`;
-    }).join("") : `<tr><td colspan="5" class="small">Seçilen alanda kesinleştirilen tebligat yok.</td></tr>`;
-
-    const selectedLabel = selectedType === "kamu_davasinin_ertelenmesi" ? "Kamu Davasının Ertelenmesi" : "Hazırlık Bürosu";
-    const heading = document.getElementById("notificationAreaLabel");
-    if(heading) heading.textContent = selectedLabel;
+function mazbataBeklemeGun(n){
+    const m = notificationMeta(n);
+    if(m.durum !== "bekliyor") return 0;
+    const g = m.gonderim_tarihi || "";
+    if(!g) return 0;
+    return Math.max(0, daysBetween(g, today()));
 }
+
+function mazbataUyariGerekli(n){
+    const m = notificationMeta(n);
+    if(m.durum !== "bekliyor") return false;
+    const gun = mazbataBeklemeGun(n);
+    return gun >= MAZBATA_UYARI_GUNU;
+}
+
+function mazbataUyariSeviyesi(n){
+    const gun = mazbataBeklemeGun(n);
+    if(gun >= 21) return "red";
+    if(gun >= 14) return "yellow";
+    return "green";
+}
+
+function renderMazbataWeeklyReminder(){
+    const box = document.getElementById("homeMazbataReminder");
+    if(!box) return;
+
+    const bekleyen = notifications
+        .filter(n => mazbataUyariGerekli(n))
+        .map(n => {
+            const f = files.find(x => x.id === n.dosya_id) || {};
+            const m = notificationMeta(n);
+            return {
+                n, f, m,
+                gun: mazbataBeklemeGun(n),
+                seviye: mazbataUyariSeviyesi(n)
+            };
+        })
+        .sort((a,b) => b.gun - a.gun);
+
+    if(!bekleyen.length){
+        box.innerHTML = "";
+        box.classList.add("hidden");
+        return;
+    }
+
+    const adet = bekleyen.length;
+    box.classList.remove("hidden");
+
+    box.innerHTML = `
+      <div class="card" style="border-left:5px solid #d97706;background:#fffbeb">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div>
+            <h3 style="margin:0 0 5px 0">🟡 Mazbata Takibi</h3>
+            <div class="small">
+              <strong>${adet}</strong> tebligatın mazbatası hâlâ bekleniyor.
+              Sistem bu kayıtları haftalık olarak hatırlatır.
+            </div>
+          </div>
+          <button type="button" class="primary"
+                  onclick="goToMazbataTracking()">
+            Tebligat Takibine Git
+          </button>
+        </div>
+
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:7px">
+          ${bekleyen.map(x => {
+              const badge =
+                  x.seviye === "red"
+                    ? '<span class="badge red">21+ GÜN</span>'
+                    : x.seviye === "yellow"
+                      ? '<span class="badge red">14+ GÜN</span>'
+                      : '<span class="badge gray">7+ GÜN</span>';
+
+              return `
+                <div style="padding:9px 10px;border:1px solid #fde68a;border-radius:8px;background:#fff">
+                  <strong>${escapeHtml(x.f.dosya_no || "-")}</strong>
+                  ${badge}
+                  <span class="small" style="margin-left:6px">
+                    ${x.gun} gündür mazbata bekleniyor
+                    · Gönderim: ${formatDate(x.m.gonderim_tarihi)}
+                  </span>
+                </div>`;
+          }).join("")}
+        </div>
+      </div>`;
+}
+
+function goToMazbataTracking(){
+    const section = document.getElementById("notifications");
+    if(section){
+        section.classList.remove("hidden");
+        section.scrollIntoView({behavior:"smooth",block:"start"});
+    }
+}
+
+function renderNotifications(){
+    const selectedType=document.getElementById("tTebligatTuru")?.value||"genel";
+    const q=(document.getElementById("tDosyaSearch")?.value||"").toLowerCase();
+    const matches=n=>{
+        if(getNotificationType(n.id)!==selectedType)return false;
+        const dosyaNo=files.find(f=>f.id===n.dosya_id)?.dosya_no||"";
+        const m=notificationMeta(n);
+        return dosyaNo.toLowerCase().includes(q)||String(notificationTebligTarihi(n)||"").includes(q)||String(m.gonderim_tarihi||"").includes(q);
+    };
+    const active=notifications.filter(n=>n.durum!=="kesinlesti"&&notificationMeta(n).durum!=="kesinlesti"&&matches(n)).sort((a,b)=>{
+        const ma=notificationMeta(a), mb=notificationMeta(b);
+        const da=ma.durum==="teblig_edildi"?notificationKesinlestirmeTarihi(a):(ma.gonderim_tarihi||"9999-99-99");
+        const db=mb.durum==="teblig_edildi"?notificationKesinlestirmeTarihi(b):(mb.gonderim_tarihi||"9999-99-99");
+        return notificationSortAsc?String(da).localeCompare(String(db)):String(db).localeCompare(String(da));
+    });
+    const finalized=notifications.filter(n=>(n.durum==="kesinlesti"||notificationMeta(n).durum==="kesinlesti")&&matches(n));
+    const activeTable=document.getElementById("notificationTable"), finalizedTable=document.getElementById("finalizedNotificationTable");
+    if(!activeTable||!finalizedTable)return;
+
+    activeTable.innerHTML=active.length?active.map(n=>{
+        const f=files.find(x=>x.id===n.dosya_id)||{}; const m=notificationMeta(n); const teblig=notificationTebligTarihi(n); const son=notificationSureSonu(n);
+        let action="";
+        if(m.durum==="bekliyor"){
+            action=`<button type="button" class="primary" onclick="markNotificationDelivered('${n.id}')">📬 Mazbata Geldi</button>
+                    <button type="button" class="secondary" onclick="markNotificationBila('${n.id}')">❌ Bila Geldi</button>`;
+        }else if(m.durum==="bila"){
+            action=`<button type="button" class="primary" onclick="reissueNotification('${n.id}')">🔁 Yeni Tebligat</button>`;
+        }else if(m.durum==="teblig_edildi"){
+            action=notificationCanBeFinalized(n)
+                ? `<button type="button" class="primary" onclick="finalizeNotification('${n.id}')">🔒 Kesinleştir</button>`
+                : `<button type="button" class="secondary" disabled>Süre Bekleniyor</button>`;
+        }
+
+        const historyHtml = m.yeniden_teblig_tarihi
+            ? `<div>
+                 <span class="badge green">↻ BİLA YENİDEN ÇIKARILDI</span>
+                 <br><span class="small">Bila tarihi: ${formatDate(m.bila_tarihi)}</span>
+                 <br><span class="small" style="color:#15803d;font-weight:700">Yeni tebligat: ${formatDate(m.yeniden_teblig_tarihi)}</span>
+               </div>`
+            : (m.bila_tarihi
+                ? `<div><span class="badge red">BİLA GELDİ</span><br><span class="small">Bila tarihi: ${formatDate(m.bila_tarihi)}</span></div>`
+                : notificationStatusLabel(n));
+return `<tr>
+<td>${escapeHtml(f.dosya_no||"-")}</td>
+<td>${formatDate(m.gonderim_tarihi)}</td>
+<td>${historyHtml}${m.sekli==="elektronik"?'<br><span class="small">Elektronik</span>':''}${m.durum==="bekliyor"?'<br><span class="small">Mazbata bekleniyor</span>':''}${m.durum==="teblig_edildi"?`<br><span class="small">Tebliğ: ${formatDate(teblig)}</span>`:''}</td>
+<td>${formatDate(son)}</td>
+<td>${notificationKesinlestirmeTarihi(n)?`<span class="small">Kesinleşme: </span><strong>${formatDate(notificationKesinlestirmeTarihi(n))}</strong>${notificationCanBeFinalized(n)?'<br><span class="badge red" style="margin-top:4px">KESİNLEŞTİRİLEBİLİR</span>':'<br><span class="small">Süre bekleniyor</span>'}`:"-"}</td>
+<td>${action}</td>
+</tr>`;
+    }).join(""):`<tr><td colspan="6" class="small">Seçilen alanda aktif tebligat yok.</td></tr>`;
+
+    finalizedTable.innerHTML=finalized.length?finalized.map(n=>{
+        const f=files.find(x=>x.id===n.dosya_id)||{},m=notificationMeta(n); const teblig=notificationTebligTarihi(n),son=notificationSureSonu(n);
+        return `<tr><td>${escapeHtml(f.dosya_no||"-")}</td><td>${formatDate(m.gonderim_tarihi)}</td><td>${formatDate(teblig)}</td><td>${formatDate(son)}</td><td>${formatDate(n.kesinlestirme_tarihi)}</td><td><span class="badge green">KESİNLEŞTİ</span></td></tr>`;
+    }).join(""):`<tr><td colspan="6" class="small">Seçilen alanda kesinleştirilen tebligat yok.</td></tr>`;
+    const selectedLabel=selectedType==="kamu_davasinin_ertelenmesi"?"Kamu Davasının Ertelenmesi":"Hazırlık Bürosu";
+    const heading=document.getElementById("notificationAreaLabel");if(heading)heading.textContent=selectedLabel;
+}
+
 
 function renderFinalizedNotifications(){
     renderNotifications();
@@ -1996,7 +2354,13 @@ async function finalizeNotification(id){
         return;
     }
 
-    const kesinTarih = notificationKesinlestirmeTarihi(n);
+    const meta=notificationMeta(n);
+    if(meta.durum!=="teblig_edildi"){
+        alert("Bu tebligat henüz tebliğ edilmemiş veya bila gelmiş. Önce mazbata sonucunu işleyin.");
+        return;
+    }
+
+    const kesinTarih = notificationKesinlestirmeTarihi({...n,teblig_tarihi:notificationTebligTarihi(n)});
 
     if(!kesinTarih || today() < kesinTarih){
         alert(
@@ -2024,7 +2388,8 @@ async function finalizeNotification(id){
         return;
     }
 
-    if(getNotificationType(n.id)==="kamu_davasinin_ertelenmesi") upsertTaliFisiFromNotification({...n,kesinlestirme_tarihi:today()});
+    setNotificationMeta(n.id,{durum:"kesinlesti"});
+    if(getNotificationType(n.id)==="kamu_davasinin_ertelenmesi") upsertTaliFisiFromNotification({...n,teblig_tarihi:notificationTebligTarihi(n),kesinlestirme_tarihi:today()});
     alert(getNotificationType(n.id)==="kamu_davasinin_ertelenmesi" ? "Tebligat kesinleştirildi. Tali karar fişi bekleyenlere eklendi." : "Tebligat kesinleştirildi.");
     await load();
 }
@@ -2303,20 +2668,22 @@ function renderDashboard(){
     const kyokCount =
     files.filter(x => x.karar_turu === "kyok").length;
 
+    /* Kesinleştirme sayacı yalnızca gerçek tebliğ tarihi girilmiş ve
+       kesinleştirme günü gelmiş tebligatları sayar. Gönderim tarihi,
+       eski/veritabanında kalmış kesinleştirme_tarihi veya mazbata bekleyen
+       kayıtlar kesinlikle sayaca dahil edilmez. */
     const kesinHazirlik =
     notifications.filter(x=>
         x.durum!=="kesinlesti" &&
         getNotificationType(x.id) !== "kamu_davasinin_ertelenmesi" &&
-        x.kesinlestirme_tarihi &&
-        today()>=x.kesinlestirme_tarihi
+        notificationCanBeFinalized(x)
     ).length;
 
     const kesinKamu =
     notifications.filter(x=>
         x.durum!=="kesinlesti" &&
         getNotificationType(x.id) === "kamu_davasinin_ertelenmesi" &&
-        x.kesinlestirme_tarihi &&
-        today()>=x.kesinlestirme_tarihi
+        notificationCanBeFinalized(x)
     ).length;
 
     const akibet=
@@ -2708,7 +3075,7 @@ function renderInactivity(){
         .map(m => {
             const f = files.find(x => x.id === m.dosya_id);
             const sonGun = m.sure_son_gunu || addDays(m.gonderim_tarihi,15);
-            const days = Math.max(0, daysBetween(m.gonderim_tarihi,todayStr));
+            const days = m.gonderim_tarihi ? Math.max(1, daysBetween(m.gonderim_tarihi,todayStr) + 1) : 0;
             const overdue = todayStr >= sonGun;
             const overdueDays = overdue ? Math.max(0,daysBetween(sonGun,todayStr)) : 0;
             const remaining = overdue ? 0 : Math.max(0,daysBetween(todayStr,sonGun));
@@ -2775,6 +3142,7 @@ function renderAll(){
     renderMemos();
     renderCompletedMemos();
     renderDashboard();
+    renderMazbataWeeklyReminder();
     renderMonthlyStats();
     renderHomeDelayedReminder();
     renderInactivity();
@@ -2807,7 +3175,7 @@ function renderAll(){
 
 })();
 
-setInterval(()=>{ if(user){ renderReminders(); renderDashboard(); renderHomeDelayedReminder(); renderInactivity(); } },60000);
+setInterval(()=>{ if(user){ renderReminders(); renderDashboard(); renderMazbataWeeklyReminder(); renderHomeDelayedReminder(); renderInactivity(); } },60000);
 
 </script>
 
