@@ -6,6 +6,7 @@
 
 
 
+
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -455,10 +456,25 @@ placeholder="Dosya numarası ara..." oninput="filterNotificationFilePicker()">
 
 </div>
 
-<button type="button" class="primary" onclick="addNotification()">
-Tebligat Ekle
-</button>
-
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<button type="button" class="primary" onclick="addNotification()">Tebligat Ekle</button>
+<button type="button" class="secondary" onclick="toggle('bulkNotificationForm')">+ Toplu Tebligat Ekle</button>
+</div>
+<div id="bulkNotificationForm" class="card hidden" style="margin-top:14px">
+<h3>Toplu Tebligat Ekle</h3>
+<p class="small">Dosya numaralarını alt alta veya virgülle yapıştır. Aynı gönderim tarihi, alan ve şekil tüm kayıtlara uygulanır.</p>
+<label>Dosya Numaraları</label>
+<textarea id="bulkNotificationDosyaNo" rows="10" placeholder="2026/101
+2026/102
+2026/103"></textarea>
+<div class="grid">
+<div><label>Tebligat Alanı</label><select id="bulkNotificationTuru"><option value="genel">Hazırlık Bürosu</option><option value="kamu_davasinin_ertelenmesi">Kamu Davasının Ertelenmesi</option></select></div>
+<div><label>Tebligat Şekli</label><select id="bulkNotificationSekli"><option value="normal">Normal Tebligat</option><option value="elektronik">Elektronik Tebligat</option></select></div>
+<div><label>Gönderim Tarihi</label><input id="bulkNotificationTarih" type="date"></div>
+</div>
+<button type="button" class="primary" onclick="addBulkNotifications()">Toplu Kaydet</button>
+<button type="button" class="secondary" onclick="toggle('bulkNotificationForm')">Vazgeç</button>
+</div>
 <br><br>
 
 <div style="overflow:auto">
@@ -1785,6 +1801,37 @@ function notificationMeta(n){
 }
 
 /* TEBLİGAT */
+async function addBulkNotifications(){
+    const raw=(document.getElementById("bulkNotificationDosyaNo")?.value||"").trim();
+    const gonderim=document.getElementById("bulkNotificationTarih")?.value||today();
+    const tebligatTuru=document.getElementById("bulkNotificationTuru")?.value||"genel";
+    const sekli=document.getElementById("bulkNotificationSekli")?.value||"normal";
+    if(!raw){alert("En az bir dosya numarası girin.");return;}
+    const nums=[...new Set(raw.split(/\r?\n|[,;]+/).map(x=>x.trim()).filter(Boolean))];
+    const {data:fileRows,error:fileError}=await supabaseClient.from("dosyalar").select("id,dosya_no").eq("owner_id",user.id);
+    if(fileError){alert("Dosyalar kontrol edilemedi: "+fileError.message);return;}
+    const fileMap=new Map((fileRows||[]).map(f=>[String(f.dosya_no||"").trim(),f]));
+    const found=[],missing=[];
+    nums.forEach(no=>{const f=fileMap.get(no);if(f)found.push(f);else missing.push(no);});
+    if(missing.length){alert("Sistemde bulunamayan dosyalar:\n\n"+missing.join("\n")+"\n\nÖnce Derdest Dosyalar bölümüne ekle.");return;}
+    if(!confirm(`${found.length} dosyaya toplu tebligat kaydı oluşturulsun mu?\n\nGönderim: ${formatDate(gonderim)}\nAlan: ${tebligatTuru==="genel"?"Hazırlık Bürosu":"Kamu Davasının Ertelenmesi"}\nŞekil: ${sekli==="normal"?"Normal":"Elektronik"}`))return;
+    let {data,error}=await supabaseClient.from("tebligatlar").insert(found.map(f=>({owner_id:user.id,dosya_id:f.id,teblig_tarihi:null,durum:"bekliyor"}))).select();
+    if(error&&error.code==="23502"){
+        const retry=await supabaseClient.from("tebligatlar").insert(found.map(f=>({owner_id:user.id,dosya_id:f.id,teblig_tarihi:gonderim,durum:"bekliyor"}))).select();
+        data=retry.data;error=retry.error;
+    }
+    if(error){alert("Toplu tebligat kaydedilemedi:\n"+error.message);return;}
+    (data||[]).forEach(row=>{
+        setNotificationType(row.id,tebligatTuru);
+        setNotificationMeta(row.id,{sekli,gonderim_tarihi:gonderim,durum:"bekliyor",teslim_tarihi:"",bila_tarihi:""});
+    });
+    document.getElementById("bulkNotificationDosyaNo").value="";
+    document.getElementById("bulkNotificationTarih").value="";
+    toggle("bulkNotificationForm");
+    alert(`${(data||[]).length} tebligat başarıyla toplu kaydedildi.\n\nMazbata bekleme takibine alındı.`);
+    await load();
+}
+
 async function addNotification(){
     const dosya=document.getElementById("tDosya")?.value;
     const gonderim=document.getElementById("tarih")?.value;
@@ -2053,7 +2100,7 @@ function withNotificationActionLock(fn){
     return Promise.resolve(fn()).finally(()=>{notificationActionBusy=false;});
 }
 let notificationSortAsc=true;
-function sortNotificationsByRemaining(a,b){
+function sorpZEAWYtiB6bJ16NuLbGCc6CZ6jJdKfb63(a,b){
     const da=notificationKesinlestirmeTarihi(a), db=notificationKesinlestirmeTarihi(b);
     if(!da&&!db)return 0;if(!da)return 1;if(!db)return -1;
     const cmp=da.localeCompare(db);return notificationSortAsc?cmp:-cmp;
